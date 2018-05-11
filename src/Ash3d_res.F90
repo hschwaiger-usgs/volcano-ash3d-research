@@ -9,7 +9,7 @@
          HR_2_S,useTemperature,nmods,OPTMOD_names,useVarDiffH,useVarDiffV
 
       use mesh,          only : &
-         ivent,jvent,nxmax,nymax,nzmax,nsmax,ts0,ts1
+         ivent,jvent,nxmax,nymax,nzmax,nsmax,insmax,ts0,ts1
 
       use solution,      only : &
          concen_pd,dep_vol,tot_vol,DepositGranularity,StopValue
@@ -182,6 +182,10 @@
         ! Set up grids for solution and Met data
       call calc_mesh_params
 
+      ! Reset the species index to the max number of grain size bins.
+      ! This will be increased in the individual Optional_Module allocation
+      ! routines that require adding species.
+      insmax = n_gs_max
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   Initialize concen and any special source terms here
@@ -228,7 +232,7 @@
       if(SourceType.eq.'gas')then
         ! We will also need to allocate some more arrays
         call Allocate_Source_Gas
-        if(EruptGasSrcStruc(1).eq.1)call Read_Deposit_Perimeter_Gas
+        if(EruptGasSrcStruc(1).eq.1)call Read_Perimeter_Gas
       endif
 #endif
 
@@ -546,9 +550,9 @@
 !         Insert calls to optional deposition routines here
 !
 #ifdef SRC_GAS
-        !if(USE_GAS)then
-        !  call Gas_Chem_Convert
-        !endif
+        if(USE_GAS)then
+          call Gas_Chem_Convert
+        endif
 #endif
 
 #ifdef WETDEPO

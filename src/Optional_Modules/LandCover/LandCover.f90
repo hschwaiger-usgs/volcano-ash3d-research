@@ -404,7 +404,7 @@
         write(global_info,*)"  Found it!"
       endif
 
-      open(unit=30,file=LC_files(LandCover_Format),access='direct',&
+      open(unit=30,file=trim(adjustl(LC_files(LandCover_Format))),access='direct',&
            recl=nlon_tot,iostat=open_status,status='old')
       if ( open_status /= 0 ) then
          print *, 'Could not open ',trim(adjustl(LC_files(LandCover_Format))),' for reading.'
