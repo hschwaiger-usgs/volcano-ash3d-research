@@ -10,10 +10,11 @@
       !integer, parameter :: nvar_User3d_XYZ_SrcGas       = 0
       !integer, parameter :: nvar_User4d_XYZGs_SrcGas     = 0
 
-      real(kind=ip),parameter :: Surf_Conc_tresh     = 1.0e-6_ip
-      real(kind=ip),parameter :: Surf_Conc_tresh_ppm = 1.0e-1_ip
-      real(kind=ip),parameter :: VertColDens_tresh   = 1.0e-6_ip
-      real(kind=ip),parameter :: VertColDens_tresh_DU= 1.0e-1_ip
+      real(kind=ip),parameter :: Surf_Conc_tresh     = 1.0e-6_ip  ! kg/km^3 or ug/m^3
+      real(kind=ip),parameter :: Surf_Conc_tresh_ppm = 1.0e-3_ip  ! ppm
+      real(kind=ip),parameter :: VertColDens_tresh   = 1.0e-6_ip  ! kg/km^2 or mg/m^2
+      real(kind=ip),parameter :: VertColDens_tresh_DU= 2.0e-1_ip  ! DU
+                                                                  ! 0.4 for OMI, IASI
 
       character(len=30),dimension(:),allocatable :: temp_2d_name_SrcGas
       character(len=30),dimension(:),allocatable :: temp_2d_unit_SrcGas
