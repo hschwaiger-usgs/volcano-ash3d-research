@@ -53,7 +53,7 @@
       ! Precipitaion rate
       logical            :: USE_3D_PRECIP = .false.
       integer            :: nc_nPrecip              ! 1 for 2d, >1 for 3d
-      integer            :: nc_RH
+      !integer            :: nc_RH
 
       ! Set the number of output variables for this module
       integer, parameter :: nvar_User2d_static_XY_WetDepo = 0
@@ -461,7 +461,7 @@
          nxmax,nymax,nzmax,nsmax
 
       use MetReader,     only : &
-         nx_submet,ny_submet,np_fullmet,np_fullmet_P0,np_fullmet_RH
+         nx_submet,ny_submet,np_fullmet
 
       implicit none
 
@@ -469,7 +469,7 @@
       write(global_info,*)"---------- ALLOCATE_WETDEPO_MET ------------------"
       write(global_info,*)"--------------------------------------------------"
 
-      nc_RH = np_fullmet_RH
+      !nc_RH = np_fullmet
 
       ! lower cloud position
       allocate(MetCloudTop_MetP(nx_submet,ny_submet))
@@ -494,9 +494,9 @@
       allocate(scav_coeff_Liq_meso_next_step(nxmax,nymax,nzmax,nsmax))
 
       ! Precipitation rates (required)
-      allocate(prate_Wat_MetP_sp(nx_submet,ny_submet,np_fullmet_P0))
+      allocate(prate_Wat_MetP_sp(nx_submet,ny_submet,np_fullmet))
       prate_Wat_MetP_sp = 0.0_sp
-!      allocate(prate_Ice_MetP_sp(nx_submet,ny_submet,np_fullmet_P0))
+!      allocate(prate_Ice_MetP_sp(nx_submet,ny_submet,np_fullmet))
 !      prate_Ice_MetP_sp = 0.0_sp
 
       ! Categorical values
@@ -520,9 +520,9 @@
 !      endif
 
 !      if(MR_iwindformat.eq.4.or.MR_iwindformat.eq.24)then
-!        allocate(QL_MetP_sp(nx_fullmet_per,ny_fullmet,np_fullmet_RH))
+!        allocate(QL_MetP_sp(nx_fullmet_per,ny_fullmet,np_fullmet))
 !        QL_MetP_sp = 0.0_sp
-!        allocate(QI_wind_sp(nx_fullmet_per,ny_fullmet,np_fullmet_RH))
+!        allocate(QI_wind_sp(nx_fullmet_per,ny_fullmet,np_fullmet))
 !        QI_wind_sp = 0.0_sp
 !      endif
 
@@ -858,9 +858,9 @@
       subroutine Set_Cloud_Level(istep)
 
       use MetReader,     only : &
-         nx_submet,ny_submet,np_fullmet,np_fullmet_RH,MR_iMetStep_Now,&
+         nx_submet,ny_submet,np_fullmet,np_fullmet,MR_iMetStep_Now,&
          MR_geoH_MetP_last,MR_geoH_MetP_next,&
-         p_fullmet_RH_sp,MR_dum3d_MetP,&
+         p_fullmet_sp,MR_dum3d_MetP,&
            MR_Read_3d_MetP_Variable
 
       implicit none
@@ -869,12 +869,12 @@
 
       integer       :: i,j
       !integer       :: nPrecip
-      real(kind=sp) :: zH(np_fullmet_RH)
+      real(kind=sp) :: zH(np_fullmet)
       !real(kind=sp) :: inthresh1,inthresh2
       !real(kind=sp) :: invar(npRH)
 
       integer :: k
-      real(kind=ip) :: var_to_check(np_fullmet_RH)
+      real(kind=ip) :: var_to_check(np_fullmet)
       real(kind=ip) :: thresh1,thresh2
       real(kind=ip) :: cloud_thick_default
       !real(kind=sp) :: prec_rate_liq_sp
@@ -897,9 +897,9 @@
         do j=1,ny_submet
 
           if(istep.eq.MR_iMetStep_Now)then
-            zH(1:np_fullmet_RH) = MR_geoH_MetP_last(i,j,1:np_fullmet_RH)
+            zH(1:np_fullmet) = MR_geoH_MetP_last(i,j,1:np_fullmet)
           elseif(istep.eq.MR_iMetStep_Now+1)then
-            zH(1:np_fullmet_RH) = MR_geoH_MetP_next(i,j,1:np_fullmet_RH)
+            zH(1:np_fullmet) = MR_geoH_MetP_next(i,j,1:np_fullmet)
           endif
 
       MetCloudBot_MetP(i,j) = -1.0_ip
@@ -910,12 +910,12 @@
       if(CloudLoc.eq.1)then
         ! Here's if we are calculating bases on liquid water mixing ratios
         ! (essentially specific humidity)
-        var_to_check = real(QL_MetP_sp(i,j,1:np_fullmet_RH),kind=ip)
+        var_to_check = real(QL_MetP_sp(i,j,1:np_fullmet),kind=ip)
         thresh1      = 1.0e-5_ip
         thresh2      = 1.0e-5_ip
       elseIf(CloudLoc.eq.2)then
         ! Here's if we are calculating based on relative humidity
-        !var_to_check = real(AirRelH_meso_next_step_MetP_sp(i,j,1:np_fullmet_RH) &
+        !var_to_check = real(AirRelH_meso_next_step_MetP_sp(i,j,1:np_fullmet) &
         !                     ,kind=ip)
 !        var_to_check = real(invar,kind=ip)
 
@@ -923,7 +923,7 @@
         thresh2      = 6.0e-1_ip
       elseif(CloudLoc.eq.3)then
         ! Use cloud top and bottom pressures from wind file
-        var_to_check = real(p_fullmet_RH_sp,kind=ip)
+        var_to_check = real(p_fullmet_sp,kind=ip)
         thresh1      = real(Pres_lcb_MetP_sp(i,j),kind=ip)
         thresh2      = real(Pres_lct_MetP_sp(i,j),kind=ip)
       else
@@ -933,7 +933,7 @@
       endif
 
       ! Get Cloud bottom
-      do k=1,np_fullmet_RH-1
+      do k=1,np_fullmet-1
         If(CloudLoc.eq.3)then
           ! using pressure as var_to_check
           if(k.eq.1.and.var_to_check(k).le.thresh1)then
@@ -964,7 +964,7 @@
       if(MetCloudBot_MetP(i,j).lt.0.0_ip) MetCloudBot_MetP(i,j) = 0.0_ip
 
       ! Get Cloud top
-      do k=1,np_fullmet_RH-1
+      do k=1,np_fullmet-1
           ! cycle for values below cloud bottom
         if(zH(k).le.MetCloudBot_MetP(i,j)) cycle
 

@@ -39,6 +39,7 @@
 
       real(kind=ip), dimension(:,:),allocatable :: SatHeightMean
       real(kind=ip), dimension(:,:),allocatable :: SatHeightVar
+      real(kind=ip), dimension(:,:),allocatable :: SatAshMassLoad
       !real(kind=ip), dimension(:,:),allocatable :: SatPixCell
       integer, dimension(:,:),allocatable :: nSatPixels_in_CompCell
 
@@ -61,7 +62,7 @@
          nmods
 
       use Source,        only : &
-        SourceType,e_Duration,e_Volume,MassFlux,e_EndTime,PlumeHeight
+        SourceType,e_Duration,e_Volume,MassFlux,e_EndTime,e_PlumeHeight
 
       use io_data,       only : &
         infile
@@ -122,7 +123,7 @@
       ! Note: some of these values may be reset depending on the settings
       !       of the block of the input file OPTMOD=SRC_SAT
       read(llinebuffer,*,err=1910) iyear,imonth,iday,hour, e_Duration(1),&
-                                   PlumeHeight(1),AshCloudThickness, &
+                                   e_PlumeHeight(1),AshCloudThickness, &
                                    AshCloudPixArea
 
       read(10,'(a130)')lllinebuffer
@@ -130,7 +131,7 @@
 
       write(global_info,*)"     Satellite source time = ",iyear,imonth,iday,real(hour,kind=sp)
       write(global_info,*)"                  Duration = ",e_Duration(1)
-      write(global_info,*)"    Maximum height allowed = ",PlumeHeight(1)
+      write(global_info,*)"    Maximum height allowed = ",e_PlumeHeight(1)
       write(global_info,*)"       Ash cloud thickness = ",AshCloudThickness
       write(global_info,*)"                Pixel area = ",AshCloudPixArea
       write(global_info,*)"  Satellite data file name = ",SatInfile
@@ -200,6 +201,7 @@
       allocate(nSatPixels_in_CompCell(nxmax,nymax))
       allocate(SatHeightMean(nxmax,nymax))
       allocate(SatHeightVar(nxmax,nymax))
+      allocate(SatAshMassLoad(nxmax,nymax))
 
       ! Set the start indecies
       indx_User2d_static_XY_SrcSat = nvar_User2d_static_XY
@@ -270,6 +272,7 @@
       if(allocated(nSatPixels_in_CompCell)) deallocate(nSatPixels_in_CompCell)
       if(allocated(SatHeightMean))          deallocate(SatHeightMean)
       if(allocated(SatHeightVar))           deallocate(SatHeightVar)
+      if(allocated(SatAshMassLoad))         deallocate(SatAshMassLoad)
 
       end subroutine Deallocate_Source_Satellite
 
@@ -458,7 +461,6 @@
       !allocate(nSatPixels_in_CompCell(nxmax,nymax))
       !allocate(SatHeightMean(nxmax,nymax))
       !allocate(SatHeightVar(nxmax,nymax))
-
 
       nSatPixels_in_CompCell = 0
 
@@ -649,6 +651,14 @@
       enddo
       endif
 
+      SatAshMassLoad(1:nxmax,1:nymax) = 0.0
+      do k = 1,nzmax
+        SatAshMassLoad(1:nxmax,1:nymax) = SatAshMassLoad(1:nxmax,1:nymax) &
+                                      + concen_pd(1:nxmax,1:nymax,k,ig,ts1)
+      enddo
+      concen_pd(:,:,:,:,:) = 0.0_ip
+
+
       write(global_info,*)&
        "Successfully loaded satellite data onto computational grid."
 
@@ -684,5 +694,36 @@
       end function Gaussian_Frac
 
 !******************************************************************************
+
+      subroutine Sat_Calc_Error(PNORM,Evol_scale,model_comp,data_comp,locLnorm)
+
+      use mesh,          only : &
+         nxmax,nymax
+
+      implicit none
+
+      real(kind=ip) :: PNORM
+      real(kind=ip) :: Evol_scale
+      real(kind=ip), dimension(nxmax,nymax) :: model_comp
+      real(kind=ip), dimension(nxmax,nymax) :: data_comp
+      real(kind=ip) :: locLnorm
+
+      !real(kind=ip), dimension(nxmax,nymax) :: abs_error
+      integer :: ix,iy
+      real(kind=ip) :: locerr
+
+      !abs_error = 0.0
+      locLnorm = 0.0
+      DO ix = 1,nxmax
+        DO iy = 1,nymax
+          locerr = abs(Evol_scale*model_comp(ix,iy)-data_comp(ix,iy))
+          !abs_error(ix,iy) = locerr
+          locLnorm = locLnorm + locerr**PNORM
+        ENDDO
+      ENDDO
+      !locLnorm = (locLnorm)**(1.0/PNORM)
+
+      end subroutine Sat_Calc_Error
+
       end module Source_Satellite
 

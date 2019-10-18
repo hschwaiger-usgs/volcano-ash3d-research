@@ -421,7 +421,7 @@
         call Adjust_DT
 
         if(VERB.gt.1)write(global_info,*)"Ash3d: Calling MassFluxCalculator"
-        !call MassFluxCalculator         ! call subroutine that determines mass flux & plume height
+        call MassFluxCalculator         ! call subroutine that determines mass flux & plume height
 
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES

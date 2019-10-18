@@ -811,7 +811,7 @@
          R_GAS_DRYAIR,CP_AIR
 
       use MetReader,     only : &
-         nx_submet,ny_submet,np_fullmet,np_fullmet_RH,p_fullmet_sp,&
+         nx_submet,ny_submet,np_fullmet,np_fullmet,p_fullmet_sp,&
          MR_geoH_metP_last,MR_geoH_MetP_next
 
       implicit none
@@ -823,7 +823,7 @@
       real(kind=ip) :: v(np_fullmet)
       real(kind=ip) :: p(np_fullmet)
       real(kind=ip) :: T(np_fullmet)
-      real(kind=ip) :: Q(np_fullmet_RH)
+      real(kind=ip) :: Q(np_fullmet)
       !real(kind=sp) :: dv_dz(np_fullmet)
 
       integer :: i,j,k
@@ -857,7 +857,7 @@
             v = vy_meso_next_step_MetP_sp(i,j,1:np_fullmet)/MPS_2_KMPHR
             T = AirTemp_meso_next_step_MetP_sp(i,j,1:np_fullmet)
             if(useMoistureVars)then
-              Q = AirSH_meso_next_step_MetP_sp(i,j,1:np_fullmet_RH)
+              Q = AirSH_meso_next_step_MetP_sp(i,j,1:np_fullmet)
             else
               Q = 0.0_ip
             endif
