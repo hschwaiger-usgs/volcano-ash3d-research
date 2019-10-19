@@ -135,12 +135,14 @@
       write(global_info,*)"Start reading resuspension source."
 
       !read start time, duration, plume height
-      !            EmissionScheme (1-west, 2=Lead, 3=Mort)
-      !               | Ustar
-      !               |   |    Fv_coeff
-      !               |   |     |
-      !               v   v     v
-!0 0 0 0.0   35.0 5.0 2  0.5   6.0e-8
+      !                Duration
+      !                |   Height
+      !                |   | EmissionScheme (1-west, 2=Lead, 3=Mort)
+      !                |   |  |   Ustar
+      !                |   |  |    |   Fv_coeff
+      !                |   |  |    |    |
+      !                v   v  v    v    v
+      ! 0 0 0 0.0   35.0 5.0  2  0.5   6.0e-8
 
       read(llinebuffer,*,err=1910) iyear,imonth,iday,hour, &
                             e_Duration,e_PlumeHeight,&
