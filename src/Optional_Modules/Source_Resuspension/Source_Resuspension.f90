@@ -72,7 +72,7 @@
          infile
 
       use Source,        only : &
-         SourceType,e_Duration,PlumeHeight,e_Volume
+         SourceType,e_Duration,e_PlumeHeight,e_Volume
 
       implicit none
 
@@ -100,8 +100,8 @@
         return
       endif
 
-      ! If we've made it here, the requested source is a satellite source, open
-      ! the input file again to get needed info
+      ! If we've made it here, the requested source is a resuspension source
+      ! open the input file again to get needed info
       open(unit=10,file=infile,status='old',err=1900)
 
       ! For custom sources, we want to read down to the source block
@@ -134,16 +134,25 @@
 
       write(global_info,*)"Start reading resuspension source."
 
-      !read start time, duration, plume height, volume of each pulse
+      !read start time, duration, plume height
+      !                Duration
+      !                |   Height
+      !                |   | EmissionScheme (1-west, 2=Lead, 3=Mort)
+      !                |   |  |   Ustar
+      !                |   |  |    |   Fv_coeff
+      !                |   |  |    |    |
+      !                v   v  v    v    v
+      ! 0 0 0 0.0   35.0 5.0  2  0.5   6.0e-8
+
       read(llinebuffer,*,err=1910) iyear,imonth,iday,hour, &
-                            e_Duration,PlumeHeight,&
+                            e_Duration,e_PlumeHeight,&
                             FvID,u_star_thresh,Fv_coeff
       read(10,'(a130)')lllinebuffer
       DepPerimInfile = adjustl(trim(lllinebuffer))
 
       write(global_info,*)iyear,imonth,iday,real(hour,kind=sp)
       write(global_info,*)"eDur   = ",e_Duration
-      write(global_info,*)"Height = ",PlumeHeight
+      write(global_info,*)"Height = ",e_PlumeHeight
       if(FvID.eq.1)then
         write(global_info,*)"FvID = 1: Westphal scheme"
       elseif(FvID.eq.2)then

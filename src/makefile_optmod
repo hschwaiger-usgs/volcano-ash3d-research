@@ -61,8 +61,7 @@ INSTALLDIR=/opt/USGS/Ash3d
 #  For each data format you want to include in the library, set the corresponding
 #  variable below to 'T'.  Set to 'F' any you do not want compiled or any unavailable
 USENETCDF = T
-USEGRIB2 = T
-USEHDF = F
+USEGRIB   = T
 
 #  VERB specifies the verbosity level for debugging purposes
 #    Current available options are:
@@ -91,7 +90,7 @@ USEPOINTERS = F
 #      LIM_MINMOD
 #      LIM_SUPERBEE
 #      LIM_MC
-#LIMITER = LIM_SUPERBEE
+LIMITER = LIM_SUPERBEE
 #
 #  DIFFMETH specifies whether or not to use Crank-Nicolson
 #
@@ -172,17 +171,16 @@ ifeq ($(USENETCDF), T)
  ncFPPFLAG = -DUSENETCDF
  ncLIBS = -lnetcdf -lnetcdff
 endif
-ifeq ($(USEGRIB2), T)
- grb2FPPFLAG = -DUSEGRIB2
- grb2LIBS = -lgrib_api_f90 -lgrib_api
-endif
-ifeq ($(USEHDF), T)
- hdfFPPFLAG = -DUSEHDF
- hdfLIBS =
+ifeq ($(USEGRIB), T)
+ grbFPPFLAG = -DUSEGRIB
+ # These are the libraries for grib_api
+ #grbLIBS = -lgrib_api_f90 -lgrib_api
+ # These are the libraries for ecCodes
+ grbLIBS = -leccodes -leccodes_f90
 endif
 
-DATAFPPFLAGS = $(ncFPPFLAG) $(grb2FPPFLAG) $(hdfFPPFLAG)
-DATALIBS = $(ncLIBS) $(grb2LIBS) $(hdfLIBS)
+DATAFPPFLAGS = $(ncFPPFLAG) $(grbFPPFLAG) $(hdfFPPFLAG)
+DATALIBS = $(ncLIBS) $(grbLIBS) $(hdfLIBS)
 
 ifeq ($(USEPOINTERS), T)
  memFPPFLAG = -DUSEPOINTERS
@@ -201,7 +199,7 @@ ifeq ($(SYSTEM), gfortran)
     FC=/usr/bin/gfortran
 
     COMPINC = -I$(FCHOME)/include -I$(FCHOME)/lib64/gfortran/modules
-    COMPLIBS = -L$(FCHOME)/lib -L$(FCHOME)/lib64
+    COMPLIBS = -L$(FCHOME)/lib64 -L$(FCHOME)/lib
 
     LIBS = $(COMPLIBS) $(USGSLIBDIR) $(USGSINC) $(COMPINC) -llapack -lblas $(USGSLIB) $(DATALIBS)
 
@@ -306,10 +304,9 @@ endif
 
 Ash3d_res: $(OBJECTS) $(DATAOBJ) $(OPTMODS_OBJ) Ash3d_res.F90 makefile_optmod
 	$(FC) $(OPTMODS_FPP) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Ash3d_res.F90 
-	$(FC) $(FFLAGS) $(EXFLAGS) $(OBJECTS) $(DATAOBJ) Ash3d_res.o $(OPTMODS_OBJ) $(LIBS) -o Ash3d_res
+	$(FC) $(FFLAGS) $(EXFLAGS) $(OBJECTS) $(DATAOBJ) Ash3d_res.o $(OPTMODS_OBJ) $(LIBS) -o $(ASH3DEXEC)
 	mkdir -p ../bin
-	mv Ash3d_res ../bin/$(ASH3DEXEC)
-
+	mv $(ASH3DEXEC) ../bin/$(ASH3DEXEC)
 
 # Objects/Modules for initilization and model set-up
 Ash3d_VariableModules.o: $(ASH3dCCSRC)/Ash3d_VariableModules.f90 makefile_optmod
