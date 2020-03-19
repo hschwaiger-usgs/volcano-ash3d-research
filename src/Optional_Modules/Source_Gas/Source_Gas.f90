@@ -313,15 +313,15 @@
 
         elseif(EruptGasSrcStruc(i).eq.3)then
           ! Read the start lon/lat and end lon/lat of fissure
-          write(global_info,*)"Gas Fissure source not yet implementes"
+          write(global_info,*)"Gas Fissure source not yet implemented"
           stop 1
         elseif(EruptGasSrcStruc(i).eq.4)then
           ! Read the lon/lat and height of line
-          write(global_info,*)"Gas Line source not yet implementes"
+          write(global_info,*)"Gas Line source not yet implemented"
           stop 1
         elseif(EruptGasSrcStruc(i).eq.5)then
           ! Read the profile of Mass fractions
-          write(global_info,*)"Gas Profile source not yet implementes"
+          write(global_info,*)"Gas Profile source not yet implemented"
           stop 1
         endif
           ! Read the next line 

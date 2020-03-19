@@ -724,8 +724,7 @@
          IsAloft
 
       use MetReader,     only : &
-         nx_submet,ny_submet,np_fullmet,MR_dum3d_compH,MR_dum3d_MetP, MR_dum2d_Met,&
-         MR_iMetStep_Now,MR_dum2d_comp,&
+         MR_dum3d_compH,MR_dum3d_MetP, MR_dum2d_Met,MR_iMetStep_Now,MR_dum2d_comp,&
            MR_Read_2d_Met_Variable,&
            MR_Regrid_Met2d_to_Comp2d,&
            MR_Read_2d_Met_Variable,&

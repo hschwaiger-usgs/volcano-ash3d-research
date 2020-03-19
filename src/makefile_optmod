@@ -307,6 +307,7 @@ endif
 Ash3d_res: $(OBJECTS) $(DATAOBJ) $(OPTMODS_OBJ) Ash3d_res.F90 makefile_optmod
 	$(FC) $(OPTMODS_FPP) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Ash3d_res.F90 
 	$(FC) $(FFLAGS) $(EXFLAGS) $(OBJECTS) $(DATAOBJ) Ash3d_res.o $(OPTMODS_OBJ) $(LIBS) -o Ash3d_res
+	mkdir -p ../bin
 	mv Ash3d_res ../bin/$(ASH3DEXEC)
 
 
@@ -372,16 +373,15 @@ write_KML.o: $(ASH3dCCSRC)/write_KML.f90 makefile_optmod Ash3d_VariableModules.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c $(ASH3dCCSRC)/write_KML.f90
 
 # Optional modules
-LandCover.o: Optional_Modules/LandCover/LandCover.f90 makefile_optmod Ash3d_VariableModules.o Output_Vars.o Tephra.o
+LandCover.o: Optional_Modules/LandCover/LandCover.f90 makefile_optmod Ash3d_VariableModules.o Output_Vars.o Tephra.o Calc_Mesh.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/LandCover/LandCover.f90
-
 WetDepo.o: Optional_Modules/Wet_Deposition/WetDepo.f90 makefile_optmod Ash3d_VariableModules.o Output_Vars.o Tephra.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/Wet_Deposition/WetDepo.f90
-Topography.o: Optional_Modules/Topography/Topography.f90 makefile_optmod Ash3d_VariableModules.o Output_Vars.o Tephra.o 
+Topography.o: Optional_Modules/Topography/Topography.f90 makefile_optmod Ash3d_VariableModules.o Output_Vars.o Tephra.o Calc_Mesh.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/Topography/Topography.f90
 Variable_Diffusivity.o: Optional_Modules/Variable_Diffusivity/Variable_Diffusivity.f90 makefile_optmod Diffusion.o Ash3d_VariableModules.o Output_Vars.o Tephra.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/Variable_Diffusivity/Variable_Diffusivity.f90
-Ocean_Currents.o: Optional_Modules/OceanCurrents/Ocean_Currents.f90 Ash3d_VariableModules.o Output_Vars.o Tephra.o
+Ocean_Currents.o: Optional_Modules/OceanCurrents/Ocean_Currents.f90 Ash3d_VariableModules.o Output_Vars.o Tephra.o Calc_Mesh.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/OceanCurrents/Ocean_Currents.f90
 Source_Satellite.o: Optional_Modules/Source_Satellite/Source_Satellite.f90 Source.o makefile_optmod Ash3d_VariableModules.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/Source_Satellite/Source_Satellite.f90

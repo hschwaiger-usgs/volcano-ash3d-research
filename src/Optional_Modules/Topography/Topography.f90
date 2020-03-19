@@ -269,6 +269,7 @@
         minlon_Topo = minval(lon_cc_pd)
         maxlon_Topo = maxval(lon_cc_pd)
       else
+        ! This function is in Calc_Mesh
         call get_minmax_lonlat(minlon_Topo,maxlon_Topo,minlat_Topo,maxlat_Topo)
       endif
 

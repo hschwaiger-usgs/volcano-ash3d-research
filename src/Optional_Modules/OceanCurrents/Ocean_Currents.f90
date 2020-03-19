@@ -97,7 +97,7 @@
       integer            :: HS_YearOfEvent
       character(len=3)   :: answer
       character(len=80)  :: linebuffer
-      integer :: ios,ioerr
+      integer :: ios
       character(len=20)  :: mod_name
       integer :: substr_pos
       integer :: iyear
