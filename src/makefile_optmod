@@ -52,7 +52,7 @@ USGSROOT=/opt/USGS
 
 # This is the location of the Ash3d core code source files that we will build this
 # research branch with.
-ASH3dCCSRC=~/work/USGS/Software_repos/GIT/Ash3d/src
+ASH3dCCSRC=~/work/USGS/Software_repos/Ash3d/src
 
 INSTALLDIR=/opt/USGS/Ash3d
 #INSTALLDIR=~/gcc
@@ -90,7 +90,7 @@ USEPOINTERS = F
 #      LIM_MINMOD
 #      LIM_SUPERBEE
 #      LIM_MC
-LIMITER = LIM_SUPERBEE
+#LIMITER = LIM_SUPERBEE
 #
 #  DIFFMETH specifies whether or not to use Crank-Nicolson
 #
@@ -179,8 +179,8 @@ ifeq ($(USEGRIB), T)
  grbLIBS = -leccodes -leccodes_f90
 endif
 
-DATAFPPFLAGS = $(ncFPPFLAG) $(grbFPPFLAG) $(hdfFPPFLAG)
-DATALIBS = $(ncLIBS) $(grbLIBS) $(hdfLIBS)
+DATAFPPFLAGS = $(ncFPPFLAG) $(grbFPPFLAG)
+DATALIBS = $(ncLIBS) $(grbLIBS)
 
 ifeq ($(USEPOINTERS), T)
  memFPPFLAG = -DUSEPOINTERS
@@ -397,4 +397,8 @@ clean:
 
 install:
 	install -d $(INSTALLDIR)/bin $(INSTALLDIR)/share/post_proc
-	install -m 755 ../bin/* $(INSTALLDIR)/bin
+	install -m 755 ../bin/$(ASH3DEXEC) $(INSTALLDIR)/bin/$(ASH3DEXEC)
+
+uninstall:
+	rm -f $(INSTALLDIR)/bin/$(ASH3DEXEC)
+
