@@ -24,7 +24,7 @@
       use io_data,       only : &
          Called_Gen_Output_Vars,isFinal_TS,LoadConcen,log_step, &
          Output_at_logsteps,Output_at_WriteTimes,Output_every_TS,&
-         NextWriteTime,nTimeNext,nvprofiles,nWriteTimes,&
+         NextWriteTime,iTimeNext,nvprofiles,nWriteTimes,&
          WriteAirportFile_ASCII,WriteAirportFile_KML
 
       use time_data,     only : &
@@ -616,8 +616,8 @@
 !------------------------------------------------------------------------------
           call output_results
           if ((WriteAirportFile_ASCII.or.WriteAirportFile_KML).and. &
-              (nTimeNext.lt.nWriteTimes)) then
-            do j=nTimeNext,nWriteTimes
+              (iTimeNext.lt.nWriteTimes)) then
+            do j=iTimeNext,nWriteTimes
               Airport_Thickness_TS(1:nairports,j) = Airport_Thickness(1:nairports)
             enddo
           endif
