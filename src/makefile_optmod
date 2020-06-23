@@ -52,7 +52,8 @@ USGSROOT=/opt/USGS
 
 # This is the location of the Ash3d core code source files that we will build this
 # research branch with.
-ASH3dCCSRC=~/work/USGS/Software_repos/Ash3d/src
+#ASH3dCCSRC=~/work/USGS/Software_repos/Ash3d/src
+ASH3dCCSRC=/home/ash3d/Ash3d/GIT/Ash3d/src
 
 INSTALLDIR=/opt/USGS/Ash3d
 #INSTALLDIR=~/gcc
@@ -75,6 +76,10 @@ VERB = 1
 # MEMORY
 # If you need pointer arrays instead of allocatable arrays, set this to 'T'
 USEPOINTERS = F
+
+# EXTERNAL DATA FILES
+#
+USEEXTDATA = T
 
 ###############################################################################
 #  NOTE:  The following flags can either be set or commented out.  If they are
@@ -186,6 +191,10 @@ ifeq ($(USEPOINTERS), T)
  memFPPFLAG = -DUSEPOINTERS
 endif
 
+ifeq ($(USEEXTDATA), T)
+ extdatFPPFLAG = -DUSEEXTDATA
+endif
+
 # location of MetReader, HoursSince and projection
 USGSLIBDIR = -L$(USGSROOT)/lib
 USGSLIB = -lMetReader -lhourssince -lprojection
@@ -228,7 +237,7 @@ ifeq ($(RUN), OMPOPT)
 endif
 
       # Preprocessing flags
-    FPPFLAGS =  -x f95-cpp-input $(DATAFPPFLAGS) $(VERBFPPFLAG) $(LIMFPPFLAG) $(DIFFFPPFLAG) $(SCFPPFLAG) $(CYCFPPFLAG) $(memFPPFLAG)
+    FPPFLAGS =  -x f95-cpp-input $(DATAFPPFLAGS) $(VERBFPPFLAG) $(LIMFPPFLAG) $(DIFFFPPFLAG) $(SCFPPFLAG) $(CYCFPPFLAG) $(memFPPFLAG) $(extdatFPPFLAG)
       # Extra flags
     #EXFLAGS = -xf95
     EXFLAGS =
