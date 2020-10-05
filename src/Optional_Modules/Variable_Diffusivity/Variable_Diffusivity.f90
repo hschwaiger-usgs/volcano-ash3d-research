@@ -139,7 +139,7 @@
 
       open(unit=10,file=infile,status='old',err=1900)
 
-      write(global_info,*)"    Searching for OPTMOD=VARDifF"
+      write(global_info,*)"    Searching for OPTMOD=VARDIFF"
       nmods = 0
       read(10,'(a80)',iostat=ios)linebuffer
       do while(ios.eq.0)
@@ -150,7 +150,7 @@
           ! found an optional module
           !  Parse for the keyword
           read(linebuffer,1104)mod_name
-          if(adjustl(trim(mod_name)).eq.'VARDifF')then
+          if(adjustl(trim(mod_name)).eq.'VARDIFF')then
             exit
           endif
         endif
@@ -253,7 +253,7 @@
 
 
       write(global_info,*)"--------------------------------------------------"
-      write(global_info,*)"---------- ALLOCATE_VARDifF_MET ------------------"
+      write(global_info,*)"---------- ALLOCATE_VARDIFF_MET ------------------"
       write(global_info,*)"--------------------------------------------------"
 
       allocate(dVel_dz_MetP_sp(nx_submet,ny_submet,np_fullmet))

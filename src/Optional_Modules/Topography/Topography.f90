@@ -101,7 +101,8 @@
       enddo
 
       useTopo = .false.
-      write(global_info,*)"    Continue reading input file for topo block"
+      write(global_info,*)&
+        "    Continue reading input file for topo block"
        ! Check if we're going to use topography
         read(10,'(a80)',iostat=ios,err=2010)linebuffer
 
@@ -120,9 +121,12 @@
           ! Check if we're using topography, then get the format code
           read(10,'(a80)',iostat=ios,err=2010)linebuffer
           read(linebuffer,*,iostat=ioerr) topoFormat,rad_smooth
-          If(topoFormat.eq.1)write(global_info,*)"Read topoFormat = 1 (ETOPO1)"
-          If(topoFormat.eq.2)write(global_info,*)"Read topoFormat = 2 (GEBCO08)"
-          write(global_info,*)"    Read smoothing radius = ",rad_smooth
+          if(topoFormat.eq.1)&
+            write(global_info,*)"Read topoFormat = 1 (ETOPO1)"
+          if(topoFormat.eq.2)&
+            write(global_info,*)"Read topoFormat = 2 (GEBCO08)"
+          write(global_info,*)"    Read smoothing radius = ",&
+                               real(rad_smooth,kind=4)
           if(IsLatLon)then
             if(rad_smooth.le.min(de,dn)*DEG2RAD*RAD_EARTH)then
               useSmoothTopo = .false.
@@ -147,7 +151,7 @@
 
       return
 
-1900  write(global_info,*)  'error: cannot find input file: ',infile
+1900  write(global_info,*)  'Error: cannot find input file: ',infile
       write(global_info,*)  'Program stopped'
       write(global_log,*)  'error: cannot find input file: ',infile
       write(global_log,*)  'Program stopped'

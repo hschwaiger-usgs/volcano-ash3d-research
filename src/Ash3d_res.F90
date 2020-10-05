@@ -6,13 +6,14 @@
 
       use global_param,  only : &
          EPS_TINY,useCalcFallVel,useDiffusion,useHorzAdvect,useVertAdvect,VERB,&
-         HR_2_S,useTemperature,nmods,OPTMOD_names,useVarDiffH,useVarDiffV
+         HR_2_S,useTemperature,DT_MIN,nmods,OPTMOD_names,useVarDiffH,useVarDiffV
 
       use mesh,          only : &
          ivent,jvent,nxmax,nymax,nzmax,nsmax,insmax,ts0,ts1
 
       use solution,      only : &
-         concen_pd,dep_vol,tot_vol,DepositGranularity,StopValue
+         concen_pd,dep_vol,tot_vol,DepositGranularity,StopValue, &
+         dep_percent_accumulated
 
       use Output_Vars,   only : &
          AreaCovered,DepositThickness,LoadVal,CloudLoadArea,&
@@ -22,7 +23,7 @@
            FirstAsh
 
       use io_data,       only : &
-         Called_Gen_Output_Vars,isFinal_TS,LoadConcen,log_step, &
+         Called_Gen_Output_Vars,isFinal_TS,LoadConcen,log_step, Ash3dHome,&
          Output_at_logsteps,Output_at_WriteTimes,Output_every_TS,&
          NextWriteTime,iTimeNext,nvprofiles,nWriteTimes,&
          WriteAirportFile_ASCII,WriteAirportFile_KML
@@ -92,24 +93,67 @@
 
       implicit none
 
+      integer               :: iostatus
       integer               :: itime
       integer               :: j,k
       integer               :: ii,jj,iz,isize
       real(kind=ip)         :: avgcon        ! avg concen of cells in umbrella
-      real(kind=ip)         :: percent_accumulated
       real(kind=ip)         :: Interval_Frac
       logical               :: Load_MesoSteps
       integer               :: ntmax
       logical, dimension(5) :: StopConditions = .false.
       logical               :: StopTimeLoop   = .false.
       logical               :: first_time     = .true.
+      character(len=130)    :: tmp_str
 
-      percent_accumulated = 0.0_ip
+      INTERFACE
+        subroutine Read_Control_File
+        end subroutine
+        subroutine alloc_arrays
+        end subroutine
+        subroutine calc_mesh_params
+        end subroutine
+        subroutine MesoInterpolater(TimeNow,Load_MesoSteps,Interval_Frac,first_time)
+          integer,parameter  :: dp         = 8 ! Double precision
+          real(kind=dp),intent(in)  :: TimeNow
+          real(kind=dp),intent(out) :: Interval_Frac
+          logical      ,intent(out) :: Load_MesoSteps
+          logical      ,intent(in)  :: first_time
+        end subroutine
+        subroutine Adjust_DT
+        end subroutine
+        subroutine output_results
+        end subroutine
+        subroutine Set_BC
+        end subroutine
+        subroutine vprofilewriter
+        end subroutine
+        subroutine TimeStepTotals(itime)
+          integer, intent(in) :: itime
+        end subroutine
+        subroutine dealloc_arrays
+        end subroutine
+      END INTERFACE
+
+      ! Set the default installation path
+      ! This is only needed if shared data files with fixed paths are read
+      ! in such as the global airport and volcano ESP files.
+      Ash3dHome = '/opt/USGS/Ash3d'
+      ! Here it is over-written by compile-time path, if available
+#include "installpath.h"
+      ! This can be over-written if an environment variable is set
+      call GET_ENVIRONMENT_VARIABLE(NAME="ASH3DHOME",VALUE=tmp_str,STATUS=iostatus)
+      if(iostatus.eq.0)then
+        Ash3dHome = tmp_str
+      endif
+
+      dep_percent_accumulated = 0.0_ip
 
       call cpu_time(t0) !time is a scaler real
 
         ! input data for ash transport
       call Read_Control_File
+
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
 !         Insert calls to custom input blocks here
@@ -121,6 +165,8 @@
 !  compiled in this executable and for consistency among modules:
 !  e.g. SRC_RESUSP will require the VARDIFF and LC be set
 !
+      write(global_info,*)&
+        "Now looping through optional modules found in input file"
       do j=1,nmods
         write(global_info,*)"Testing for ",OPTMOD_names(j),j
 #ifdef TOPO
@@ -172,11 +218,14 @@
         endif
 #endif
       enddo
+      write(global_info,*)&
+        "Finished reading all specialized input blocks"
 !
 !------------------------------------------------------------------------------
 
         ! Read airports/POI and allocate/initilize arrays
-      if (WriteAirportFile_ASCII.or.WriteAirportFile_KML)  call ReadAirports
+      if (WriteAirportFile_ASCII.or.WriteAirportFile_KML) &
+        call ReadAirports
 
       call alloc_arrays
         ! Set up grids for solution and Met data
@@ -310,7 +359,8 @@
 #endif
 #ifdef OSCAR
       if(useOceanCurrent)then
-        write(global_info,*)"Ocean current branch disabled until rgrd2 is replaced."
+        write(global_info,*)&
+         "Ocean current branch disabled until rgrd2 is replaced."
         stop 1
         call Check_SurfaceVelocity
         call set_SurfaceVelocity(0.0_ip)
@@ -584,8 +634,12 @@
           if (nvprofiles.gt.0) call vprofilewriter     !write out vertical profiles
         endif
 
-        !GO TO OUTPUT RESULTS IF WE'RE AT THE NEXT OUTPUT STAGE
-        if(Output_at_WriteTimes.and.(NextWriteTime-time.lt.1.0e-4_ip))then
+        ! GO TO OUTPUT RESULTS IF WE'RE AT THE NEXT OUTPUT STAGE
+        ! Note that dt was set in Adjust_DT so that it is no larger than
+        ! DT_MIN, but may be adjusted down so as to land on the next
+        ! output time.  time has already been integrated forward so
+        ! NextWriteTime-time should be near zero for output steps.
+        if(Output_at_WriteTimes.and.(NextWriteTime-time.lt.DT_MIN))then
             ! Generate output variables if we haven't already
           if(.not.Called_Gen_Output_Vars)then
             call Gen_Output_Vars
@@ -659,14 +713,14 @@
         endif
 
         if(tot_vol.gt.EPS_TINY)then
-          percent_accumulated = dep_vol/tot_vol
+          dep_percent_accumulated = dep_vol/tot_vol
         else
-          percent_accumulated = 0.0_ip
+          dep_percent_accumulated = 0.0_ip
         endif
 
         ! Check stop conditions
         !  If any of these is true, then the time loop will stop
-        StopConditions(1) = .false. !(percent_accumulated.gt.StopValue)
+        StopConditions(1) = .false. !(dep_percent_accumulated.gt.StopValue)
         StopConditions(2) = (time.ge.Simtime_in_hours)
         StopConditions(3) = .false. !(ns_aloft.eq.0)
         StopConditions(4) = .false.  !tot_vol.le.(1.05_ip*sum(e_Volume))
@@ -687,12 +741,12 @@
         endif
 
       enddo  !loop over itime
-              !  ((percent_accumulated.le.StopValue).and. &
+              !  ((dep_percent_accumulated.le.StopValue).and. &
               !    (time.lt.Simtime_in_hours)        .and. &
               !    (ns_aloft.gt.0))
 
       write(global_info,*)"Time integration completed for the following reason:"
-      if(.not.percent_accumulated.le.StopValue)then
+      if(.not.dep_percent_accumulated.le.StopValue)then
         write(global_info,*)"Percent accumulated exceeds ",StopValue
       endif
       if(.not.time.lt.Simtime_in_hours)then
@@ -738,7 +792,7 @@
       write(global_log ,3) t1-t0, time*HR_2_S
       write(global_info,4) time*HR_2_S/(t1-t0)
       write(global_log ,4) time*HR_2_S/(t1-t0)
-      call TimeStepTotals
+      call TimeStepTotals(itime)
       write(global_info,5) dep_vol
       write(global_log ,5) dep_vol
       write(global_info,6) tot_vol

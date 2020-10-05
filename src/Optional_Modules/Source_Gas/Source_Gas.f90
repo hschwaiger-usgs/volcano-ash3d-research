@@ -139,7 +139,7 @@
       character(len=3)   :: answer
       character(len=80)  :: linebuffer
       character(len=120) :: llinebuffer
-      character(len=130) :: lllinebuffer
+      !character(len=130) :: lllinebuffer
       character :: testkey
       integer :: ios !,ioerr
       character(len=20) :: mod_name
@@ -685,14 +685,15 @@
       do k = 1,nzmax
         dum_op = dum_op + &
                  real(concen_pd(i,j,k,indx,ts1),kind=op) * & ! in kg/km^3
-                             dz_vec_pd(k)                             ! convert to kg/km^2
+                 real(dz_vec_pd(k),kind=op)                  ! convert to kg/km^2
       enddo
       if(GS_GasSpecies_IsAerosol(gasID))then
         ! If species is an aerosol, then write column loading in kg/km^2
         if(dum_op.gt.VertColDens_tresh)    SrcGas_VertColDens(ig,i,j) = dum_op ! in kg/km^2
       else
         ! If a gas (not an aerosol) then convert column loading to Dobson Units (DU)
-        dum_op = dum_op / (0.44670_op * GS_GasSpecies_MolWeight(gasID))  ! convert from kg/km^2 to DU
+        dum_op = dum_op &
+         / (0.44670_op * real(GS_GasSpecies_MolWeight(gasID),kind=op))  ! convert from kg/km^2 to DU
         if(dum_op.gt.VertColDens_tresh_DU) SrcGas_VertColDens(ig,i,j) = dum_op ! in DU
       endif
 

@@ -74,6 +74,9 @@
       use Source,        only : &
          SourceType,e_Duration,e_PlumeHeight,e_Volume
 
+      use time_data,     only : &
+         Simtime_in_hours
+
       implicit none
 
       !character(len=3)  :: answer
@@ -150,9 +153,16 @@
       read(10,'(a130)')lllinebuffer
       DepPerimInfile = adjustl(trim(lllinebuffer))
 
+      if( e_Duration.gt.Simtime_in_hours)then
+        write(global_info,*)&
+          "Source duration is longer than the model simulation time."
+        write(global_info,*)&
+          "Resetting to simulation time."
+        e_Duration = Simtime_in_hours
+      endif
       write(global_info,*)iyear,imonth,iday,real(hour,kind=sp)
-      write(global_info,*)"eDur   = ",e_Duration
-      write(global_info,*)"Height = ",e_PlumeHeight
+      write(global_info,*)"eDur   = ",real(e_Duration,kind=sp)
+      write(global_info,*)"Height = ",real(e_PlumeHeight,kind=sp)
       if(FvID.eq.1)then
         write(global_info,*)"FvID = 1: Westphal scheme"
       elseif(FvID.eq.2)then
@@ -167,13 +177,15 @@
         stop 1
       endif
       if(u_star_thresh.gt.0.0_ip)then
-        write(global_info,*)"u_star_thresh = ",u_star_thresh
-      !else
-      !  write(global_info,*)"u_star_thresh will be calculated from local
-      !  conditions."
-      !1  write(global_info,*)"Not yet implemented."
+        write(global_info,*)"u_star_thresh = ",&
+                            real(u_star_thresh,kind=sp)
+      else
+        write(global_info,*)&
+          "u_star_thresh will be calculated from local conditions."
+        write(global_info,*)"Not yet implemented."
       endif
-      write(global_info,*)"FV_scaling coefficient = ",Fv_coeff
+      write(global_info,*)"FV_scaling coefficient = ",&
+                          real(Fv_coeff,kind=sp)
       write(global_info,*)DepPerimInfile
 
       ! Initialize some eruption values
@@ -196,7 +208,7 @@
           !  Parse for the keyword
           read(linebuffer,1104)mod_name
           if(adjustl(trim(mod_name)).eq.'SRC_RESUSP')then
-            !write(global_info,*)"Found SRC_RESUSP block again"
+            write(global_info,*)"Found SRC_RESUSP block again"
             exit
           endif
           !OPTMOD_names(nmods) = adjustl(trim(mod_name))
@@ -206,6 +218,7 @@
 
 !2010  continue
       close(10)
+      write(global_info,*)"Finished input_data_Source_Resuspension"
 
       return
 
@@ -374,8 +387,22 @@
       real(kind=ip),dimension(nymax) :: loc_y
       real(kind=ip) :: loc_dx, loc_dy
       real(kind=dp)  :: lat_in,lon_in,xout,yout
+      logical                 :: IsThere
 
       integer :: i,j
+
+      ! Test for existance of the deposit file
+      inquire( file=adjustl(trim(DepPerimInfile)), exist=IsThere )
+      write(global_info,*)&
+        "Trying to read deposit contour file"
+      write(global_info,*)"Full file name = ",adjustl(trim(DepPerimInfile))
+      write(global_info,*)"  Exists = ",IsThere
+      if(.not.IsThere)then
+        write(global_error,*)"ERROR: Could not find contour file."
+        write(global_error,*)&
+          "       Please copy file to current directory"
+        stop 1
+      endif
 
       write(global_info,*)"Opening ",DepPerimInfile
       open(unit=20,file=DepPerimInfile)
@@ -489,11 +516,17 @@
           !  'next' can be copied to the 'last'
 
            ! Now resample Friction Velocity onto computational grid
-          !ivar = 13
-          !call MR_Read_2d_Met_Variable_to_CompGrid(ivar,MR_iMetStep_Now)
-          !FricVel_meso_next_step_sp = MR_dum2d_comp
+          ivar = 13
+          call MR_Read_2d_Met_Variable_to_CompGrid(ivar,MR_iMetStep_Now)
+          FricVel_meso_next_step_sp = MR_dum2d_comp
           !Note:  This was read in variable_diffusivity on the met grid and now
           !       only needs to be resampled
+          if(allocated(FricVel_meso_next_step_Met_sp)) then
+            write(*,*)"FricVel_meso_next_step_Met_sp is allocated"
+          else
+            write(*,*)"FricVel_meso_next_step_Met_sp is NOT allocated"
+            stop 5
+          endif
           MR_dum2d_met = FricVel_meso_next_step_Met_sp
           call MR_Regrid_Met2d_to_Comp2d
           FricVel_meso_next_step_sp = MR_dum2d_comp
