@@ -148,21 +148,21 @@
       ! 0 0 0 0.0   35.0 5.0  2  0.5   6.0e-8
 
       read(llinebuffer,*,err=1910) iyear,imonth,iday,hour, &
-                            e_Duration,e_PlumeHeight,&
+                            e_Duration(1),e_PlumeHeight(1),&
                             FvID,u_star_thresh,Fv_coeff
       read(10,'(a130)')lllinebuffer
       DepPerimInfile = adjustl(trim(lllinebuffer))
 
-      if( e_Duration.gt.Simtime_in_hours)then
+      if( e_Duration(1).gt.Simtime_in_hours)then
         write(global_info,*)&
           "Source duration is longer than the model simulation time."
         write(global_info,*)&
           "Resetting to simulation time."
-        e_Duration = Simtime_in_hours
+        e_Duration(1) = Simtime_in_hours
       endif
       write(global_info,*)iyear,imonth,iday,real(hour,kind=sp)
-      write(global_info,*)"eDur   = ",real(e_Duration,kind=sp)
-      write(global_info,*)"Height = ",real(e_PlumeHeight,kind=sp)
+      write(global_info,*)"eDur   = ",real(e_Duration(1),kind=sp)
+      write(global_info,*)"Height = ",real(e_PlumeHeight(1),kind=sp)
       if(FvID.eq.1)then
         write(global_info,*)"FvID = 1: Westphal scheme"
       elseif(FvID.eq.2)then
@@ -189,8 +189,8 @@
       write(global_info,*)DepPerimInfile
 
       ! Initialize some eruption values
-      e_Duration  = 0.0_ip
-      e_Volume    = 0.0_ip
+      e_Duration(:)  = 0.0_ip
+      e_Volume(:)    = 0.0_ip
 
       ! Now read to the end of the input file and read the Optional Modudle
       ! block
