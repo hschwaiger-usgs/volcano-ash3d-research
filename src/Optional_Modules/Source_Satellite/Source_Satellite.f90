@@ -256,8 +256,8 @@
         var_User2d_static_XY_lname(indx)= temp_2ds_lname_SrcSat(i)
         var_User2d_static_XY_MissVal(indx)= temp_2ds_MissVal_SrcSat(i)
         var_User2d_static_XY_FillVal(indx)= temp_2ds_FillVal_SrcSat(i)
-        if(i.eq.1)var_User2d_static_XY(:,:,indx) = SatHeightMean
-        if(i.eq.2)var_User2d_static_XY(:,:,indx) = SatHeightVar
+        if(i.eq.1)var_User2d_static_XY(:,:,indx) = real(SatHeightMean,kind=op)
+        if(i.eq.2)var_User2d_static_XY(:,:,indx) = real(SatHeightVar,kind=op)
         if(i.eq.3)var_User2d_static_XY(:,:,indx) = real(nSatPixels_in_CompCell,kind=op)
       enddo
 

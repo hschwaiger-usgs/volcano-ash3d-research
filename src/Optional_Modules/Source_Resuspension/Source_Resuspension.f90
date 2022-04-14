@@ -327,7 +327,7 @@
         var_User2d_XY_lname(indx)= temp_2d_lname_SrcResusp(i)
         var_User2d_XY_MissVal(indx)= temp_2d_MissVal_SrcResusp(i)
         var_User2d_XY_FillVal(indx)= temp_2d_FillVal_SrcResusp(i)
-        if(i.eq.1)var_User2d_XY(:,:,indx) = FricVel_ip(:,:)
+        if(i.eq.1)var_User2d_XY(:,:,indx) = real(FricVel_ip(:,:),kind=op)
       enddo
 
       end subroutine Prep_output_Source_Resuspension

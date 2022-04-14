@@ -570,9 +570,12 @@
         var_User2d_XY_lname(indx)  = temp_2d_lname_WetDepo(i)
         var_User2d_XY_MissVal(indx)= temp_2d_MissVal_WetDepo(i)
         var_User2d_XY_FillVal(indx)= temp_2d_FillVal_WetDepo(i)
-        if(i.eq.1) var_User2d_XY(1:nxmax,1:nymax,indx) = precipitation_rate_2d(1:nxmax,1:nymax)
-        if(i.eq.2) var_User2d_XY(1:nxmax,1:nymax,indx) = MetCloudBotHeight(1:nxmax,1:nymax)
-        if(i.eq.3) var_User2d_XY(1:nxmax,1:nymax,indx) = MetCloudTopHeight(1:nxmax,1:nymax)
+        if(i.eq.1) var_User2d_XY(1:nxmax,1:nymax,indx) = &
+                       real(precipitation_rate_2d(1:nxmax,1:nymax),kind=op)
+        if(i.eq.2) var_User2d_XY(1:nxmax,1:nymax,indx) = &
+                       real(MetCloudBotHeight(1:nxmax,1:nymax),kind=op)
+        if(i.eq.3) var_User2d_XY(1:nxmax,1:nymax,indx) = &
+                       real(MetCloudTopHeight(1:nxmax,1:nymax),kind=op)
       enddo
       !write(global_info,*)precipitation_rate_2d
 
@@ -584,13 +587,13 @@
         var_User3d_XYGs_MissVal(indx)= temp_3ds_MissVal_WetDepo(i)
         var_User3d_XYGs_FillVal(indx)= temp_3ds_FillVal_WetDepo(i)
         if(i.eq.1.and.USE_WASHOUT_LIQ) var_User3d_XYGs(1:nxmax,1:nymax,1:n_gs_max,indx) = &
-                   Deposit_Liq_Washout(1:nxmax,1:nymax,1:n_gs_max)
+                   real(Deposit_Liq_Washout(1:nxmax,1:nymax,1:n_gs_max),kind=op)
         if(i.eq.2.and.USE_RAINOUT_LIQ) var_User3d_XYGs(1:nxmax,1:nymax,1:n_gs_max,indx) = &
-                   Deposit_Liq_Rainout(1:nxmax,1:nymax,1:n_gs_max)
+                   real(Deposit_Liq_Rainout(1:nxmax,1:nymax,1:n_gs_max),kind=op)
         if(i.eq.3.and.USE_WASHOUT_ICE) var_User3d_XYGs(1:nxmax,1:nymax,1:n_gs_max,indx) = &
-                    Deposit_Ice_Washout(1:nxmax,1:nymax,1:n_gs_max)
+                   real(Deposit_Ice_Washout(1:nxmax,1:nymax,1:n_gs_max),kind=op)
         if(i.eq.4.and.USE_RAINOUT_ICE) var_User3d_XYGs(1:nxmax,1:nymax,1:n_gs_max,indx) = &
-                    Deposit_Ice_Rainout(1:nxmax,1:nymax,1:n_gs_max)
+                   real(Deposit_Ice_Rainout(1:nxmax,1:nymax,1:n_gs_max),kind=op)
       enddo
 
       do i=1,nvar_User3d_XYZ_WetDepo
@@ -602,9 +605,10 @@
         var_User3d_XYZ_FillVal(indx)= temp_3dz_FillVal_WetDepo(i)
         if(i.eq.1)then
           if(USE_3D_PRECIP)then
-            var_User3d_XYZ(1:nxmax,1:nymax,1:nzmax,indx) = precipitation_rate_3d(1:nxmax,1:nymax,1:nzmax)
+            var_User3d_XYZ(1:nxmax,1:nymax,1:nzmax,indx) = &
+                real(precipitation_rate_3d(1:nxmax,1:nymax,1:nzmax),kind=op)
           else
-            var_User3d_XYZ(1:nxmax,1:nymax,1:nzmax,indx) = 0.0
+            var_User3d_XYZ(1:nxmax,1:nymax,1:nzmax,indx) = 0.0_op
           endif
         endif
       enddo
@@ -618,7 +622,7 @@
         var_User4d_XYZGs_FillVal(indx)= temp_4d_FillVal_WetDepo(i)
         if(i.eq.1) &
           var_User4d_XYZGs(1:nxmax,1:nymax,1:nzmax,1:n_gs_max,indx) = &
-            scav_coeff_Liq_3d(1:nxmax,1:nymax,1:nzmax,1:n_gs_max)
+            real(scav_coeff_Liq_3d(1:nxmax,1:nymax,1:nzmax,1:n_gs_max),kind=op)
       enddo
 
       end subroutine Prep_output_WetDepo
@@ -1649,7 +1653,7 @@
         nxmax,nymax,kappa_pd,dx,dy,dz_vec_pd,IsLatLon,kappa_pd,dz_vec_pd
 
       use Output_Vars,   only : &
-        AreaCovered,DepositThickness
+        DepositAreaCovered,DepositThickness
 
       use solution,      only : &
          DepositGranularity
@@ -1662,7 +1666,7 @@
       
 
       ! add contribution of WetDepo to deposit thickness in mm, and area covered
-      AreaCovered               = 0.0_ip
+      DepositAreaCovered               = 0.0_ip
       if(.not.IsLatLon) dvol = dx*dy*dz_vec_pd(1)
 
       if(USE_WASHOUT_LIQ.or.USE_RAINOUT_LIQ)then

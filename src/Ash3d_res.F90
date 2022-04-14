@@ -5,20 +5,23 @@
       use io_units
 
       use global_param,  only : &
-         EPS_TINY,useCalcFallVel,useDiffusion,useHorzAdvect,useVertAdvect,VERB,&
-         HR_2_S,useTemperature,DT_MIN,nmods,OPTMOD_names,useVarDiffH,useVarDiffV
+         useCalcFallVel,useDiffusion,useHorzAdvect,useVertAdvect,VERB,&
+         HR_2_S,useTemperature,DT_MIN,CFL,KM3_2_M3,EPS_TINY,EPS_SMALL,&
+         nmods,OPTMOD_names,useVarDiffH,useVarDiffV
 
       use mesh,          only : &
-         ivent,jvent,nxmax,nymax,nzmax,nsmax,insmax,ts0,ts1
+         ivent,jvent,nxmax,nymax,nzmax,nsmax,ts0,ts1,kappa_pd
 
       use solution,      only : &
-         concen_pd,dep_vol,tot_vol,DepositGranularity,StopValue, &
-         dep_percent_accumulated
+         concen_pd,DepositGranularity,StopValue,dep_percent_accumulated, &
+         SourceCumulativeVol,dep_vol,aloft_vol,outflow_vol,tot_vol
 
       use Output_Vars,   only : &
-         AreaCovered,DepositThickness,LoadVal,CloudLoadArea,&
+         DepositAreaCovered,DepositThickness,LoadVal,CloudLoadArea,&
+         Calculated_Cloud_Load,Calculated_AshThickness,Calc_vprofile, &
            Allocate_Output_Vars, &
            Allocate_Output_UserVars, &
+           Allocate_Profile, &
            Gen_Output_Vars,&
            FirstAsh
 
@@ -29,7 +32,7 @@
          WriteAirportFile_ASCII,WriteAirportFile_KML
 
       use time_data,     only : &
-         time,dt,Simtime_in_hours,t0,t1
+         time,dt,Simtime_in_hours,t0,t1,ntmax
 
       use Source,        only : &
          ibase,itop,SourceNodeFlux,e_EndTime_final,e_Volume,MassFluxRate_now,&
@@ -39,10 +42,10 @@
            TephraSourceNodes
 
       use Tephra,        only : &
-         n_gs_max,ns_aloft,&
+         n_gs_max,n_gs_aloft,MagmaDensity,&
            Allocate_Tephra,&
            Allocate_Tephra_Met,&
-           Collapse_GS
+           Prune_GS
 
       use Atmosphere,    only : &
            Allocate_Atmosphere_Met
@@ -100,11 +103,11 @@
       real(kind=ip)         :: avgcon        ! avg concen of cells in umbrella
       real(kind=ip)         :: Interval_Frac
       logical               :: Load_MesoSteps
-      integer               :: ntmax
       logical, dimension(5) :: StopConditions = .false.
       logical               :: StopTimeLoop   = .false.
       logical               :: first_time     = .true.
       character(len=130)    :: tmp_str
+      real(kind=ip)         :: MassConsErr
 
       INTERFACE
         subroutine Read_Control_File
@@ -120,13 +123,13 @@
           logical      ,intent(out) :: Load_MesoSteps
           logical      ,intent(in)  :: first_time
         end subroutine
-        subroutine Adjust_DT
-        end subroutine
         subroutine output_results
         end subroutine
-        subroutine Set_BC
+        subroutine Set_BC(bc_code)
+          integer,intent(in) :: bc_code ! 1 for advection, 2 for diffusion
         end subroutine
-        subroutine vprofilewriter
+        subroutine vprofilewriter(itime)
+          integer, intent(in) :: itime
         end subroutine
         subroutine TimeStepTotals(itime)
           integer, intent(in) :: itime
@@ -145,9 +148,21 @@
       call GET_ENVIRONMENT_VARIABLE(NAME="ASH3DHOME",VALUE=tmp_str,STATUS=iostatus)
       if(iostatus.eq.0)then
         Ash3dHome = tmp_str
+        write(global_info,*)&
+          "Install path reset by environment variable to: ",Ash3dHome
+      endif
+      call GET_ENVIRONMENT_VARIABLE(NAME="ASH3DCFL",VALUE=tmp_str,STATUS=iostatus)
+      if(iostatus.eq.0)then
+        read(tmp_str,*)CFL
+        write(global_info,*)&
+          "CFL condition reset by environment variable to: ",CFL
+      else
+        write(global_info,*)&
+          "CFL condition : ",CFL
       endif
 
       dep_percent_accumulated = 0.0_ip
+      SourceCumulativeVol     = 0.0_ip
 
       call cpu_time(t0) !time is a scaler real
 
@@ -169,6 +184,10 @@
         "Now looping through optional modules found in input file"
       do j=1,nmods
         write(global_info,*)"Testing for ",OPTMOD_names(j),j
+        if(OPTMOD_names(j).eq.'RESETPARAMS')then
+          write(global_info,*)"  Reading input block for RESETPARAMS"
+          call input_data_ResetParams
+        endif
 #ifdef TOPO
         if(OPTMOD_names(j).eq.'TOPO')then
           write(global_info,*)"  Reading input block for TOPO"
@@ -224,7 +243,9 @@
 !------------------------------------------------------------------------------
 
         ! Read airports/POI and allocate/initilize arrays
-      if (WriteAirportFile_ASCII.or.WriteAirportFile_KML) &
+        ! We only need to do this if an output variable demands it since this is
+        ! a burden every time step
+      if(Output_every_TS) &
         call ReadAirports
 
       call alloc_arrays
@@ -234,7 +255,7 @@
       ! Reset the species index to the max number of grain size bins.
       ! This will be increased in the individual Optional_Module allocation
       ! routines that require adding species.
-      insmax = n_gs_max
+      nsmax = n_gs_max
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   Initialize concen and any special source terms here
@@ -368,8 +389,6 @@
 #endif
 !------------------------------------------------------------------------------
 
-      call Adjust_DT
-
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
 !         Insert calls to prep user-specified output
@@ -409,9 +428,13 @@
         ! Call output_results before time loop to create output files
       call output_results
 
-      ntmax = max(1,int(Simtime_in_hours/dt))
+      ntmax = max(1,3*int(Simtime_in_hours/dt))
+      if (nvprofiles.gt.0)then
+        call Allocate_Profile(nzmax,ntmax,nvprofiles)
+      endif
 
-      write(global_info,7)            !write "Building time array of plume height & eruption rate"
+      ! write "Building time array of plume height & eruption rate"
+      write(global_info,7)
       write(global_log ,7)
 
       call Allocate_Source_time
@@ -427,6 +450,7 @@
       ! ************************************************************************
       itime = 0
       write(global_info,*)"Starting time loop."
+
       do while (StopTimeLoop.eqv..false.)
         ! Note: stop conditions are evaluated at the end of the time loop
 
@@ -435,10 +459,12 @@
           ! re-initialize slice (1)
         concen_pd(:,:,:,1:nsmax,ts1) = 0.0_ip
 
-        Called_Gen_Output_Vars = .false.
+        Called_Gen_Output_Vars  = .false.
+        Calculated_Cloud_Load   = .false.
+        Calculated_AshThickness = .false.
 
         itime = itime + 1
-        if(itime.gt.3*ntmax)then
+        if(itime.gt.ntmax)then
           write(global_info,*)"WARNING: The number of time steps attempted exceeds 3x that anticipated."
           write(global_info,*)"         Check that the winds are stable"
           write(global_info,*)"        Simtime_in_hours = ",Simtime_in_hours
@@ -468,9 +494,6 @@
 #endif
 !------------------------------------------------------------------------------
 
-        call Adjust_DT
-
-        if(VERB.gt.1)write(global_info,*)"Ash3d: Calling MassFluxCalculator"
         call MassFluxCalculator         ! call subroutine that determines mass flux & plume height
 
 !------------------------------------------------------------------------------
@@ -494,23 +517,25 @@
         ! Add source term
         ! erupt ash into column
         if(MassFluxRate_now.gt.0.0_ip) then
-
           ! Check if the source type is one of the standard types
           if ((SourceType.eq.'point')  .or. &
               (SourceType.eq.'line')   .or. &
               (SourceType.eq.'profile').or. &
               (SourceType.eq.'suzuki') .or. &
-              (SourceType.eq.'umbrella'))then
+              (SourceType.eq.'umbrella') .or. &
+              (SourceType.eq.'umbrella_air'))then
             ! Calculating the flux at the source nodes
             call TephraSourceNodes
 
             ! Now integrate the ash concentration with the SourceNodeFlux
-            if (SourceType.eq.'umbrella') then
+            if (SourceType.eq.'umbrella'.or. &
+               (SourceType.eq.'umbrella_air')) then
               ! Umbrella clouds have a special integration
               !  Below the umbrella cloud, add ash to vent nodes as above
-              concen_pd(ivent,jvent,1:ibase-1,1:n_gs_max,ts0) =                        &
-                                       concen_pd(ivent,jvent,1:ibase-1,1:n_gs_max,ts0) &
-                                       + dt*SourceNodeFlux(1:ibase-1,1:n_gs_max)
+              concen_pd(ivent,jvent,1:ibase-1,1:n_gs_max,ts0) =          & ! 
+                       concen_pd(ivent,jvent,1:ibase-1,1:n_gs_max,ts0) + & ! kg/km3
+                       dt                                              * & ! hr
+                       SourceNodeFlux(1:ibase-1,1:n_gs_max)                ! kg/km3 hr
               do iz=ibase,itop
                 !Within the cloud: first, average the concentration that curently
                 !exists in the 9 cells surrounding the vent
@@ -523,18 +548,29 @@
               do ii=ivent-1,ivent+1
                 do jj=jvent-1,jvent+1
                   do iz=ibase,itop
-                    concen_pd(ii,jj,iz,1:nsmax,ts0) =                &
+                    concen_pd(ii,jj,iz,1:n_gs_max,ts0) =                &
                               concen_pd(ii,jj,iz,1:n_gs_max,ts0)        &
-                                 + dt*SourceNodeFlux(iz,1:nsmax)
+                                 + dt*SourceNodeFlux(iz,1:n_gs_max)
                   enddo
                 enddo
               enddo
-            else
+            else ! (SourceType.eq.'umbrella' or 'umbrella_air')
               ! All other standard source types (point,line,profile, suzuki) are
               ! integrated as follows.
               concen_pd(ivent,jvent,1:nzmax+1,1:n_gs_max,ts0) =  &
               concen_pd(ivent,jvent,1:nzmax+1,1:n_gs_max,ts0)    &
                 + dt*SourceNodeFlux(1:nzmax+1,1:n_gs_max)
+              ! this part is just for book-keeping and error checking
+              do ii=1,n_gs_max
+                do k=1,nzmax+1
+                  SourceCumulativeVol = SourceCumulativeVol + & ! final units is km3
+                    dt                              * & ! hr
+                    SourceNodeFlux(k,ii)            * & ! kg/km3 hr
+                    kappa_pd(ivent,jvent,k)         / & ! km3
+                    MagmaDensity                    / & ! kg/m3
+                    KM3_2_M3                            ! m3/km3
+                enddo
+              enddo
             endif
           !else
             ! This is not a standard source.
@@ -558,7 +594,7 @@
 #endif
 !------------------------------------------------------------------------------
           endif
-        endif
+        endif !MassFluxRate_now.gt.0.0_ip
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ! Set Boundary Conditions
@@ -571,7 +607,7 @@
         if(useOceanCurrent) call set_SurfaceVelocity(time)
 #endif
 !------------------------------------------------------------------------------
-        call Set_BC
+        call Set_BC(1)
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ! Advection / Diffusion / Deposition
@@ -591,6 +627,7 @@
         if(useVertAdvect) call advect_z
 
         if(useDiffusion)then
+          call Set_BC(2)
           call DiffuseVert
           call DiffuseHorz(itime)
         endif
@@ -619,6 +656,7 @@
         ! time-step, then extract output variables from concen here
         if(Output_every_TS)then
           call Gen_Output_Vars
+
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
 !         Insert calls output routines (every timestep) here
@@ -630,8 +668,12 @@
 
             ! SEE WHETHER THE ASH HAS HIT ANY AIRPORTS
           call FirstAsh
+
             ! Track ash on vertical profiles
-          if (nvprofiles.gt.0) call vprofilewriter     !write out vertical profiles
+          if (nvprofiles.gt.0)then
+            call Calc_vprofile(itime)
+            call vprofilewriter(itime)     !write out vertical profiles
+          endif
         endif
 
         ! GO TO OUTPUT RESULTS IF WE'RE AT THE NEXT OUTPUT STAGE
@@ -703,7 +745,7 @@
               if(USE_WETDEPO) call ThicknessCalculator_WetDepo
 #endif
             endif
-            call Collapse_GS
+            call Prune_GS
           endif
         else
             ! If we are not monitoring deposits through logsteps, then set
@@ -712,7 +754,7 @@
           tot_vol = 0.0_ip
         endif
 
-        if(tot_vol.gt.EPS_TINY)then
+        if(tot_vol.gt.EPS_SMALL)then
           dep_percent_accumulated = dep_vol/tot_vol
         else
           dep_percent_accumulated = 0.0_ip
@@ -720,11 +762,26 @@
 
         ! Check stop conditions
         !  If any of these is true, then the time loop will stop
-        StopConditions(1) = .false. !(dep_percent_accumulated.gt.StopValue)
+           ! Normal stop condition set by user tracking the deposit
+        !StopConditions(1) = (dep_percent_accumulated.gt.StopValue)
+         ! It is better to stop based on remaining ash aloft than amount
+         ! deposited since if more than 1% blows out of the domain, this
+         ! criterion would never be invoked.
+        StopConditions(1) = (aloft_vol/tot_vol.lt.(1.0_ip-StopValue))
+           ! Normal stop condition if simulation exceeds alloted time
         StopConditions(2) = (time.ge.Simtime_in_hours)
-        StopConditions(3) = .false. !(ns_aloft.eq.0)
-        StopConditions(4) = .false.  !tot_vol.le.(1.05_ip*sum(e_Volume))
-        StopConditions(5) = .false.
+           ! Normal stop conditionn when nothing is left to advect
+        StopConditions(3) = (n_gs_aloft.eq.0)
+        if(SourceCumulativeVol.gt.EPS_TINY)then
+          MassConsErr = abs(SourceCumulativeVol-tot_vol)/SourceCumulativeVol
+        endif
+           ! Error stop condition if the concen and outflow do not match the source
+        StopConditions(4) = (MassConsErr.gt.1.0e-3_ip)
+           ! Error stop condition if any volume measure is negative
+        StopConditions(5) = (dep_vol.lt.-1.0_ip*EPS_SMALL).or.&
+                            (aloft_vol.lt.-1.0_ip*EPS_SMALL).or.&
+                            (outflow_vol.lt.-1.0_ip*EPS_SMALL).or.&
+                            (SourceCumulativeVol.lt.-1.0_ip*EPS_SMALL)
 
         if(StopConditions(1).eqv..true.)then
           StopTimeLoop = .true.
@@ -743,34 +800,62 @@
       enddo  !loop over itime
               !  ((dep_percent_accumulated.le.StopValue).and. &
               !    (time.lt.Simtime_in_hours)        .and. &
-              !    (ns_aloft.gt.0))
+              !    (n_gs_aloft.gt.0))
+
+      ! Reset ntmax to the actual number of time steps
+      ntmax = itime
 
       write(global_info,*)"Time integration completed for the following reason:"
-      if(.not.dep_percent_accumulated.le.StopValue)then
-        write(global_info,*)"Percent accumulated exceeds ",StopValue
+      if(StopConditions(1).eqv..true.)then
+        ! Normal stop condition set by user tracking the deposit
+        write(global_info,*)"Percent accumulated/exited exceeds ",StopValue
       endif
-      if(.not.time.lt.Simtime_in_hours)then
+      if(StopConditions(2).eqv..true.)then
+        ! Normal stop condition if simulation exceeds alloted time
         write(global_info,*)"time.le.Simtime_in_hours"
-        write(global_info,*)"              Time = ",time
-        write(global_info,*)"  Simtime_in_hours = ",Simtime_in_hours
+        write(global_info,*)"              Time = ",real(time,kind=4)
+        write(global_info,*)"  Simtime_in_hours = ",real(Simtime_in_hours,kind=4)
+        write(global_log,*)"time.le.Simtime_in_hours"
+        write(global_log,*)"              Time = ",real(time,kind=4)
+        write(global_log,*)"  Simtime_in_hours = ",real(Simtime_in_hours,kind=4)
       endif
-      if(ns_aloft.eq.0)then
-        write(global_info,*)"ns_aloft = 0"
+      if(StopConditions(3).eqv..true.)then
+        ! Normal stop condition when nothing is left to advect
+        write(global_info,*)"No ash species remain aloft."
+        write(global_log,*)"No ash species remain aloft."
       endif
-      if(tot_vol.gt.(1.05_ip*sum(e_Volume)))then
-        write(global_info,*) "tot_vol>1.05*e_volume"
-        write(global_info,*) " tot_vol = ",tot_vol
-        write(global_info,*) "e_Volume = ",e_Volume
+      if(StopConditions(4).eqv..true.)then
+        ! Error stop condition if the concen and outflow do not match the source
+        write(global_info,*)"Cummulative source volume does not match aloft + outflow"
+        write(global_info,*)" tot_vol = ",tot_vol
+        write(global_info,*)" SourceCumulativeVol = ",SourceCumulativeVol
+        write(global_info,*)" Abs. Error = ",&
+                            abs((tot_vol-SourceCumulativeVol)/SourceCumulativeVol)
+        write(global_info,*)" e_Volume = ",e_Volume
+        stop 1
       endif
+      if(StopConditions(5).eqv..true.)then
+        ! Error stop condition if any volume measure is negative
+        write(global_info,*)"One of the volume measures is negative."
+        write(global_info,*)"        dep_vol = ",dep_vol
+        write(global_info,*)"        aloft_vol = ",aloft_vol
+        write(global_info,*)"        outflow_vol = ",outflow_vol
+        write(global_info,*)"        SourceCumulativeVol = ",SourceCumulativeVol
+        stop 1
+      endif
+
       ! ************************************************************************
       ! ****** end time simulation *********************************************
       ! ************************************************************************
 
       isFinal_TS = .true.
       write(global_info,12)   !put footnotes below output table
+      write(global_log,12)   !put footnotes below output table
       write(global_log ,12)
-      write(global_info,*) 'time=',time,', dt=',dt
-
+      write(global_info,*)'time=',real(time,kind=4),',dt=',real(dt,kind=4)
+      write(global_log,*)'time=',real(time,kind=4),',dt=',real(dt,kind=4)
+      write(global_info,*)"Mass Conservation Error = ",MassConsErr
+      write(global_log,*)"Mass Conservation Error = ",MassConsErr
         ! Make sure we have the latest output variables and go to write routines
       call Gen_Output_Vars
 !------------------------------------------------------------------------------
@@ -783,7 +868,7 @@
 !------------------------------------------------------------------------------
 
       call output_results
-                
+
       !WRITE RESULTS TO LOG AND STANDARD OUTPUT
       !TotalTime_sp = etime(elapsed_sp)
       !write(global_info,*) elapsed_sp(2), time*3600.0_ip
@@ -797,8 +882,8 @@
       write(global_log ,5) dep_vol
       write(global_info,6) tot_vol
       write(global_log ,6) tot_vol
-      write(global_info,9) maxval(DepositThickness), AreaCovered
-      write(global_log ,9) maxval(DepositThickness), AreaCovered
+      write(global_info,9) maxval(DepositThickness), DepositAreaCovered
+      write(global_log ,9) maxval(DepositThickness), DepositAreaCovered
 
       write(global_info,34)       !write out area of cloud at different thresholds
       write(global_log ,34)
@@ -816,11 +901,12 @@
 1     format(/,5x,'Starting volume (km3 DRE)    = ',f11.4,       &
              /,5x,'maximum number of time steps = ',i8,          &
              //,21x,'Time',19x,                                  &
-                '|--------------Volume (km3 DRE)-------------|', &
+                '|--------------------Volume (km3 DRE)-------------------|', &
                 3x,'Cloud Area',                                 &
               /,7x,'step',8x,'(hrs)',2x,'yyyymmddhh:mm',         &
-                5x,'Deposit',7x,'Aloft',5x,'Outflow',7x,          &
-                   'Total',10x,'km2')
+                5x,'Source',6x,'Deposit',7x,'Aloft',5x,'Outflow',&
+                7x,'Total',10x,'km2')
+
 3     format(/,5x,'Execution time           = ',f15.4,' seconds',&
              /,5x,'Simulation time          = ',f15.4,' seconds')       
 4     format(  5x,'Execution time/CPU time  = ',f15.4)       

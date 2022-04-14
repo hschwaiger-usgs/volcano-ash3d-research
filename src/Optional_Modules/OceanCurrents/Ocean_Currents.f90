@@ -259,8 +259,10 @@
         var_User2d_XY_lname(indx)= temp_2d_lname_OSCAR(i)
         var_User2d_XY_MissVal(indx)= temp_2d_MissVal_OSCAR(i)
         var_User2d_XY_FillVal(indx)= temp_2d_FillVal_OSCAR(i)
-        if(i.eq.1)var_User2d_XY(1:nxmax,1:nymax,indx) = vx_pd(1:nxmax,1:nymax,0)
-        if(i.eq.2)var_User2d_XY(1:nxmax,1:nymax,indx) = vy_pd(1:nxmax,1:nymax,0)
+        if(i.eq.1)var_User2d_XY(1:nxmax,1:nymax,indx) = &
+                      real(vx_pd(1:nxmax,1:nymax,0),kind=op)
+        if(i.eq.2)var_User2d_XY(1:nxmax,1:nymax,indx) = &
+                      real(vy_pd(1:nxmax,1:nymax,0),kind=op)
       enddo
 
 

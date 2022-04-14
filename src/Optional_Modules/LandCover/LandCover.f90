@@ -229,7 +229,7 @@
         var_User2d_static_XY_lname(indx)= temp_2ds_lname_LC(i)
         var_User2d_static_XY_MissVal(indx)= temp_2ds_MissVal_LC(i)
         var_User2d_static_XY_FillVal(indx)= temp_2ds_FillVal_LC(i)
-        if(i.eq.1)var_User2d_static_XY(1:nxmax,1:nymax,indx) = real(LC_grid(1:nxmax,1:nymax),kind=ip)
+        if(i.eq.1)var_User2d_static_XY(1:nxmax,1:nymax,indx) = real(LC_grid(1:nxmax,1:nymax),kind=op)
       enddo
 
       end subroutine Prep_output_LC
@@ -254,7 +254,7 @@
       subroutine load_LC
 
       use mesh,          only : &
-         nxmax,nymax,IsLatLon,lat_cc_pd,lon_cc_pd
+         IsLatLon,lat_cc_pd,lon_cc_pd
 
       implicit none
 
