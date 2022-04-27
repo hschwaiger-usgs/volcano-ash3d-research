@@ -31,13 +31,13 @@
 #            radius -- earth radius for a spherical earth 1101-13-
 *******************************************************************************
 test                      #Volcano name (character*30) (61.299,152.251)
-0 1 -150.0 90.0 0.933 6371.229     #Proj flags and params
+0 1 210.0 90.0 0.933 6371.229     #Proj flags and params
 -340.0 -3460.0                #x, y of LL corner of grid (km, or deg. if latlongflag=1) -165 40
 220.0  130.0               #grid width and height (km, or deg. if latlonflag=1)
 -306.0 -3361.0 0.0              #vent location         (km, or deg. if latlonflag=1) 52.177N 175.508W
 2.0      2.0                  #DX, DY of grid cells  (km, or deg.)
 0.5                          #DZ of grid cells      (always km)
-50.0      resuspension       #diffusion coefficient (m2/s), Suzuki constant
+50.0      resuspens       #diffusion coefficient (m2/s), Suzuki constant
 1                              #neruptions, number of eruptions or pulses
 *******************************************************************************
 #ERUPTION LINES (number = neruptions)
@@ -120,37 +120,37 @@ netcdf          #format of ash concentration files                              
 # If we're reading gridded data there should be iWinNum wind files, each having
 # the format volcano_name_yyyymmddhh_FHhh.win
 *******************************************************************************
-nam.t00z.alaskanest.hiresf00.tm00.grib2
-nam.t00z.alaskanest.hiresf01.tm00.grib2
-nam.t00z.alaskanest.hiresf02.tm00.grib2
-nam.t00z.alaskanest.hiresf03.tm00.grib2
-nam.t00z.alaskanest.hiresf04.tm00.grib2
-nam.t00z.alaskanest.hiresf05.tm00.grib2
-nam.t00z.alaskanest.hiresf06.tm00.grib2
-nam.t00z.alaskanest.hiresf07.tm00.grib2
-nam.t00z.alaskanest.hiresf08.tm00.grib2
-nam.t00z.alaskanest.hiresf09.tm00.grib2
-nam.t00z.alaskanest.hiresf10.tm00.grib2
-nam.t00z.alaskanest.hiresf11.tm00.grib2
-nam.t00z.alaskanest.hiresf12.tm00.grib2
-nam.t00z.alaskanest.hiresf13.tm00.grib2
-nam.t00z.alaskanest.hiresf14.tm00.grib2
-nam.t00z.alaskanest.hiresf15.tm00.grib2
-nam.t00z.alaskanest.hiresf16.tm00.grib2
-nam.t00z.alaskanest.hiresf17.tm00.grib2
-nam.t00z.alaskanest.hiresf18.tm00.grib2
-nam.t00z.alaskanest.hiresf19.tm00.grib2
-nam.t00z.alaskanest.hiresf20.tm00.grib2
-nam.t00z.alaskanest.hiresf21.tm00.grib2
-nam.t00z.alaskanest.hiresf22.tm00.grib2
-nam.t00z.alaskanest.hiresf23.tm00.grib2
-nam.t00z.alaskanest.hiresf24.tm00.grib2
-nam.t00z.alaskanest.hiresf25.tm00.grib2
-nam.t00z.alaskanest.hiresf26.tm00.grib2
-nam.t00z.alaskanest.hiresf27.tm00.grib2
-nam.t00z.alaskanest.hiresf28.tm00.grib2
-nam.t00z.alaskanest.hiresf29.tm00.grib2
-nam.t00z.alaskanest.hiresf30.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf00.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf01.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf02.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf03.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf04.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf05.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf06.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf07.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf08.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf09.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf10.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf11.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf12.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf13.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf14.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf15.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf16.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf17.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf18.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf19.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf20.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf21.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf22.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf23.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf24.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf25.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf26.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf27.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf28.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf29.tm00.grib2
+iwf12/nam.t00z.alaskanest.hiresf30.tm00.grib2
 *******************************************************************************
 #AIRPORT LOCATION FILE
 #The following lines allow the user to specify whether times of ash arrival

@@ -4,6 +4,9 @@
 
       use io_units
 
+      use Tephra,  only : &
+         n_gs_max
+
       ! Set the number of output variables for this module
       integer :: nvar_User2d_XY_SrcGas
       !integer, parameter :: nvar_User3d_XYGs_SrcGas      = 0
@@ -123,13 +126,13 @@
       subroutine input_data_Source_Gas
 
       use global_param,  only : &
-         nmods,HR_2_S
+         nmods,HR_2_S,CheckConditions
 
       use io_data,       only : &
          infile
 
       use mesh,          only : &
-         nxmax,nymax,nsmax,insmax,de,dn,lonLL,latLL
+         nxmax,nymax,nsmax,de,dn,lonLL,latLL
 
       use Source,        only : &
          neruptions,SourceType,e_Volume,e_Duration
@@ -369,7 +372,7 @@
               stop 1
             else
               write(global_info,*)"Reading list of gas species IDs."
-              iconcen_gas_start = insmax
+              iconcen_gas_start = n_gs_max
             endif
             allocate(GS_GasSpeciesID(ngas_max))
             allocate(GS_GasSpecies_OutputSurfConc(ngas_max))
@@ -429,10 +432,10 @@
                 Gas_N2_index  = iconcen_gas_start+i    ! 11 = N2        nitrogen
               elseif(GS_GasSpeciesID(i).eq.12)then
                 Have_CH4 = .true.
-                Gas_CH4_index  = iconcen_gas_start+i    ! 12 = CH4      methane
+                Gas_CH4_index  = iconcen_gas_start+i   ! 12 = CH4       methane
               elseif(GS_GasSpeciesID(i).eq.13)then
                 Have_CO = .true.
-                Gas_CO_index  = iconcen_gas_start+i   ! 13 = CO         carbon monoxide
+                Gas_CO_index  = iconcen_gas_start+i    ! 13 = CO        carbon monoxide
               elseif(GS_GasSpeciesID(i).eq.14)then
                 Have_Rn = .true.
                 Gas_Rn_index  = iconcen_gas_start+i    ! 14 = Rn        radon
@@ -546,8 +549,15 @@
 !2010  continue
       close(10)
 
-      insmax = insmax + ngas_max  ! Reset the counter to the max thus far
-      nsmax  = insmax             ! and assign the full max value
+      nsmax = n_gs_max + ngas_max
+      write(*,*)" Number of gas species = ",ngas_max
+      write(*,*)" Resetting nsmax to ",nsmax
+
+      ! Disable some of the stop conditions
+      CheckConditions(1) = .false.
+      CheckConditions(3) = .false.
+      CheckConditions(4) = .false.
+      CheckConditions(5) = .false.
 
       return
 
@@ -570,7 +580,7 @@
          nvar_User2d_XY
 
       use mesh,          only : &
-         nxmax,nymax,insmax,ts1
+         nxmax,nymax,ts1
 
       use solution,      only : &
          SpeciesID,SpeciesSubID
@@ -635,8 +645,8 @@
 
       ! While here, assign some of the global specied indecies now that the arrays
       ! have been allocated
-      SpeciesID(insmax+1:insmax+ngas_max)    = 3 ! chem bins
-      SpeciesSubID(insmax+1:insmax+ngas_max) = GS_GasSpeciesID(1:ngas_max)
+      SpeciesID(iconcen_gas_start+1:iconcen_gas_start+ngas_max)    = 3 ! chem bins
+      SpeciesSubID(iconcen_gas_start+1:iconcen_gas_start+ngas_max) = GS_GasSpeciesID(1:ngas_max)
 
       end subroutine Allocate_Source_Gas
 
@@ -960,6 +970,8 @@
       integer :: i,j,ie,idx
       real(kind=ip) :: Fv
 
+      SourceNodeFlux_Area = 0.0_ip
+
       do ie=1,neruptions
         ! Get the chem species for this eruptive pulse
         select case (EruptGasSpeciesID(ie))
@@ -1072,7 +1084,7 @@
           !k = topo_indx(i,j)
           k = 1
           concen_pd(i,j,k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0) =                     &
-                   concen_pd(i,j,k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0)  &
+          concen_pd(i,j,k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0)  &
                    + dt*SourceNodeFlux_Area(i,j,1:ngas_max)/kappa_pd(i,j,1)
         enddo
       enddo
@@ -1108,6 +1120,8 @@
       !       Furthermore, if multiple reactions are to be invoked, the sub-stepping must be in sync
       !       so that simultaneous evolution equations can be properly integrated.
 
+      concen_pd(:,:,:,:,ts1) = 0.0_ip
+
       do ireac = 1,nreactions
         if(Reaction_ID(ireac).eq.1)then
           ! This is the fixed decay rate
@@ -1138,8 +1152,11 @@
         endif
       enddo
 
-      concen_pd(1:nxmax,1:nymax,1:nzmax,1:nsmax,ts0) = &
-        concen_pd(1:nxmax,1:nymax,1:nzmax,1:nsmax,ts1)
+      concen_pd(1:nxmax,1:nymax,1:nzmax,Gas_SO2_index,ts0) = &
+        concen_pd(1:nxmax,1:nymax,1:nzmax,Gas_SO2_index,ts1)
+
+      concen_pd(1:nxmax,1:nymax,1:nzmax,Gas_SO4_index,ts0) = &
+        concen_pd(1:nxmax,1:nymax,1:nzmax,Gas_SO4_index,ts1)
 
       end subroutine Gas_Chem_Convert
 

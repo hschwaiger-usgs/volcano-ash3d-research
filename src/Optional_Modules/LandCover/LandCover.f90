@@ -303,8 +303,6 @@
         !endif
       else
         call get_minmax_lonlat(minlon_LC,maxlon_LC,minlat_LC,maxlat_LC)
-        minlon_LC = minval(lon_cc_pd)
-        maxlon_LC = maxval(lon_cc_pd)
         if(minlon_LC.gt.180.0_ip)then
           minlon_LC = minlon_LC - 360.0_ip
           maxlon_LC = maxlon_LC - 360.0_ip

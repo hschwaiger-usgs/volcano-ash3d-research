@@ -37,7 +37,7 @@ Vog_FC                             #Volcano name (character*30) (61.299,152.251)
 -155.2834 19.4069 0.0              #vent location         (km, or deg. if latlonflag=1) 52.177N 175.508W
 0.01      0.01                     #DX, DY of grid cells  (km, or deg.)
 0.5                                #DZ of grid cells      (always km)
--1.0      gas                      #diffusion coefficient (m2/s), Suzuki constant
+0.0      gas                      #diffusion coefficient (m2/s), Suzuki constant
 2                                  #neruptions, number of eruptions or pulses
 *******************************************************************************
 #ERUPTION LINES (number = neruptions)
@@ -121,43 +121,43 @@ netcdf          #format of ash concentration files                              
 # If we're reading gridded data there should be iWinNum wind files, each having
 # the format volcano_name_yyyymmddhh_FHhh.win
 *******************************************************************************
-nam.t00z.hawaiinest.hiresf00.tm00.grib2
-nam.t00z.hawaiinest.hiresf01.tm00.grib2
-nam.t00z.hawaiinest.hiresf02.tm00.grib2
-nam.t00z.hawaiinest.hiresf03.tm00.grib2
-nam.t00z.hawaiinest.hiresf04.tm00.grib2
-nam.t00z.hawaiinest.hiresf05.tm00.grib2
-nam.t00z.hawaiinest.hiresf06.tm00.grib2
-nam.t00z.hawaiinest.hiresf07.tm00.grib2
-nam.t00z.hawaiinest.hiresf08.tm00.grib2
-nam.t00z.hawaiinest.hiresf09.tm00.grib2
-nam.t00z.hawaiinest.hiresf10.tm00.grib2
-nam.t00z.hawaiinest.hiresf11.tm00.grib2
-nam.t00z.hawaiinest.hiresf12.tm00.grib2
-nam.t00z.hawaiinest.hiresf13.tm00.grib2
-nam.t00z.hawaiinest.hiresf14.tm00.grib2
-nam.t00z.hawaiinest.hiresf15.tm00.grib2
-nam.t00z.hawaiinest.hiresf16.tm00.grib2
-nam.t00z.hawaiinest.hiresf17.tm00.grib2
-nam.t00z.hawaiinest.hiresf18.tm00.grib2
-nam.t00z.hawaiinest.hiresf19.tm00.grib2
-nam.t00z.hawaiinest.hiresf20.tm00.grib2
-nam.t00z.hawaiinest.hiresf21.tm00.grib2
-nam.t00z.hawaiinest.hiresf22.tm00.grib2
-nam.t00z.hawaiinest.hiresf23.tm00.grib2
-nam.t00z.hawaiinest.hiresf24.tm00.grib2
-nam.t00z.hawaiinest.hiresf25.tm00.grib2
-nam.t00z.hawaiinest.hiresf26.tm00.grib2
-nam.t00z.hawaiinest.hiresf27.tm00.grib2
-nam.t00z.hawaiinest.hiresf28.tm00.grib2
-nam.t00z.hawaiinest.hiresf29.tm00.grib2
-nam.t00z.hawaiinest.hiresf30.tm00.grib2
-nam.t00z.hawaiinest.hiresf31.tm00.grib2
-nam.t00z.hawaiinest.hiresf32.tm00.grib2
-nam.t00z.hawaiinest.hiresf33.tm00.grib2
-nam.t00z.hawaiinest.hiresf34.tm00.grib2
-nam.t00z.hawaiinest.hiresf35.tm00.grib2
-nam.t00z.hawaiinest.hiresf36.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf00.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf01.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf02.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf03.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf04.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf05.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf06.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf07.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf08.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf09.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf10.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf11.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf12.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf13.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf14.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf15.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf16.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf17.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf18.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf19.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf20.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf21.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf22.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf23.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf24.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf25.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf26.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf27.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf28.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf29.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf30.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf31.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf32.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf33.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf34.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf35.tm00.grib2
+iwf11/nam.t00z.hawaiinest.hiresf36.tm00.grib2
 *******************************************************************************
 #AIRPORT LOCATION FILE
 #The following lines allow the user to specify whether times of ash arrival
@@ -227,9 +227,9 @@ yes                         # use vertical variable diffusivity
 # Gas
 *******************************************************************************
 OPTMOD=SRC_GAS
-2
-3 4                                     # nsmax gas indicies
-yes                                     # Convert SO2 to SO4
-1                                       # Convertion scheme (1=fixed decay rate)
-6.0                                     # Half-life in hours
+2                                       # number of chem species
+3  T T                                  # Chem spec. 1 + output flags (surf, col.dens.)
+50 T T                                  # Chem spec. 2 + output flags (surf, col.dens.)
+1                                       # number or reactions to calculate
+1 0.000032090                           # Reaction ID 1=Convert SO2 to SO4 via const decay rate (1/s)
 

@@ -66,7 +66,7 @@
       subroutine input_data_Source_Resuspension
 
       use global_param,      only : &
-         nmods
+         nmods,CheckConditions
 
       use io_data,       only : &
          infile
@@ -215,6 +215,12 @@
         endif
 1104    format(7x,a20)
       enddo
+
+      ! Disable some of the stop conditions
+      CheckConditions(1) = .false.
+      CheckConditions(3) = .false.
+      CheckConditions(4) = .false.
+      CheckConditions(5) = .false.
 
 !2010  continue
       close(10)

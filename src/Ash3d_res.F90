@@ -7,13 +7,14 @@
       use global_param,  only : &
          useCalcFallVel,useDiffusion,useHorzAdvect,useVertAdvect,VERB,&
          HR_2_S,useTemperature,DT_MIN,CFL,KM3_2_M3,EPS_TINY,EPS_SMALL,&
-         nmods,OPTMOD_names,useVarDiffH,useVarDiffV
+         nmods,OPTMOD_names,StopConditions,CheckConditions, &
+         useVarDiffH,useVarDiffV
 
       use mesh,          only : &
          ivent,jvent,nxmax,nymax,nzmax,nsmax,ts0,ts1,kappa_pd
 
       use solution,      only : &
-         concen_pd,DepositGranularity,StopValue,dep_percent_accumulated, &
+         concen_pd,DepositGranularity,StopValue,aloft_percent_remaining, &
          SourceCumulativeVol,dep_vol,aloft_vol,outflow_vol,tot_vol
 
       use Output_Vars,   only : &
@@ -103,7 +104,6 @@
       real(kind=ip)         :: avgcon        ! avg concen of cells in umbrella
       real(kind=ip)         :: Interval_Frac
       logical               :: Load_MesoSteps
-      logical, dimension(5) :: StopConditions = .false.
       logical               :: StopTimeLoop   = .false.
       logical               :: first_time     = .true.
       character(len=130)    :: tmp_str
@@ -161,7 +161,8 @@
           "CFL condition : ",CFL
       endif
 
-      dep_percent_accumulated = 0.0_ip
+      !dep_percent_accumulated = 0.0_ip
+      aloft_percent_remaining = 1.0_ip
       SourceCumulativeVol     = 0.0_ip
 
       call cpu_time(t0) !time is a scaler real
@@ -251,11 +252,6 @@
       call alloc_arrays
         ! Set up grids for solution and Met data
       call calc_mesh_params
-
-      ! Reset the species index to the max number of grain size bins.
-      ! This will be increased in the individual Optional_Module allocation
-      ! routines that require adding species.
-      nsmax = n_gs_max
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   Initialize concen and any special source terms here
@@ -473,6 +469,7 @@
         endif
 
           ! find the wind field at the current time
+        if(VERB.gt.1)write(global_info,*)"Calling MesoInterpolater."
         first_time     = .false.
         call MesoInterpolater(time , Load_MesoSteps , Interval_Frac, first_time)
 !------------------------------------------------------------------------------
@@ -480,20 +477,25 @@
 !         Insert calls to special MesoInterpolaters subroutines here
 !
 #ifdef VARDIFF
+        if(VERB.gt.1)write(global_info,*)"Calling Set_VarDiffH_Meso."
         if(useVarDiffH)     call Set_VarDiffH_Meso(Load_MesoSteps,Interval_Frac)
+        if(VERB.gt.1)write(global_info,*)"Calling Set_VarDiffV_Meso."
         if(useVarDiffV)     call Set_VarDiffV_Meso(Load_MesoSteps,Interval_Frac)
 #endif
 #ifdef SRC_RESUSP
+        if(VERB.gt.1)write(global_info,*)"Calling Set_Resusp_Meso."
         if(useResuspension) call Set_Resusp_Meso(Load_MesoSteps,Interval_Frac)
 #endif
 #ifdef SRC_GAS
+        if(VERB.gt.1)write(global_info,*)"Calling Set_Gas_Meso."
         if(USE_GAS)          call Set_Gas_Meso(Load_MesoSteps,Interval_Frac)
 #endif
 #ifdef WETDEPO
+        if(VERB.gt.1)write(global_info,*)"Calling Set_WetDepo_Meso."
         if(USE_WETDEPO)     call Set_WetDepo_Meso(Load_MesoSteps,Interval_Frac)
 #endif
 !------------------------------------------------------------------------------
-
+        if(VERB.gt.1)write(global_info,*)"Calling MassFluxCalculator."
         call MassFluxCalculator         ! call subroutine that determines mass flux & plume height
 
 !------------------------------------------------------------------------------
@@ -502,12 +504,14 @@
 !
 #ifdef SRC_RESUSP
         if(useResuspension)then
+          if(VERB.gt.1)write(global_info,*)"Calling Set_Resusp_Flux."
           call Set_Resusp_Flux
           MassFluxRate_now = sum(SourceNodeFlux_Area)
         endif
 #endif
 #ifdef SRC_GAS
         if(USE_GAS)then
+          if(VERB.gt.1)write(global_info,*)"Calling Set_Gas_Flux."
           call Set_Gas_Flux
           MassFluxRate_now = sum(SourceNodeFlux_Area)  ! kg/hr  
         endif
@@ -525,6 +529,7 @@
               (SourceType.eq.'umbrella') .or. &
               (SourceType.eq.'umbrella_air'))then
             ! Calculating the flux at the source nodes
+            if(VERB.gt.1)write(global_info,*)"Calling TephraSourceNodes."
             call TephraSourceNodes
 
             ! Now integrate the ash concentration with the SourceNodeFlux
@@ -586,10 +591,12 @@
 !
           elseif (SourceType.eq.'resuspens') then
 #ifdef SRC_RESUSP
+            if(VERB.gt.1)write(global_info,*)"Calling Set_concen_Resusp."
             call Set_concen_Resusp
 #endif
           elseif (SourceType.eq.'gas') then
 #ifdef SRC_GAS
+            if(VERB.gt.1)write(global_info,*)"Calling Set_concen_Gas."
             call Set_concen_Gas
 #endif
 !------------------------------------------------------------------------------
@@ -604,9 +611,11 @@
 !         Insert calls to optional boundary conditions here
 
 #ifdef OSCAR
+        if(VERB.gt.1)write(global_info,*)"Calling set_SurfaceVelocity."
         if(useOceanCurrent) call set_SurfaceVelocity(time)
 #endif
 !------------------------------------------------------------------------------
+        if(VERB.gt.1)write(global_info,*)"Calling Set_BC."
         call Set_BC(1)
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -617,18 +626,24 @@
 !         Insert calls to optional advection/diffusion routines here
 !
 #ifdef OSCAR
+        if(VERB.gt.1)write(global_info,*)"Calling advect_deposit."
         if(useOceanCurrent) &
           call advect_deposit(concen_pd(1:nxmax,1:nymax,0,1:nsmax,ts0))
 #endif
 !------------------------------------------------------------------------------
 
+        if(VERB.gt.1)write(global_info,*)"Calling AdvectHorz."
         if(useHorzAdvect) call AdvectHorz(itime)
 
+        if(VERB.gt.1)write(global_info,*)"Calling advect_z."
         if(useVertAdvect) call advect_z
 
         if(useDiffusion)then
+          if(VERB.gt.1)write(global_info,*)"Calling Set_BC."
           call Set_BC(2)
+          if(VERB.gt.1)write(global_info,*)"Calling DiffuseVert."
           call DiffuseVert
+          if(VERB.gt.1)write(global_info,*)"Calling DiffuseHorz."
           call DiffuseHorz(itime)
         endif
 
@@ -638,12 +653,14 @@
 !
 #ifdef SRC_GAS
         if(USE_GAS)then
+          if(VERB.gt.1)write(global_info,*)"Calling Gas_Chem_Convert."
           call Gas_Chem_Convert
         endif
 #endif
 
 #ifdef WETDEPO
         if(USE_WETDEPO)then
+          if(VERB.gt.1)write(global_info,*)"Calling Wet_Depo_Rainout."
           call Wet_Depo_Rainout
         endif
 #endif
@@ -655,6 +672,7 @@
         ! If there is any time-series output requiring evaluation at each
         ! time-step, then extract output variables from concen here
         if(Output_every_TS)then
+          if(VERB.gt.1)write(global_info,*)"Calling Gen_Output_Vars."
           call Gen_Output_Vars
 
 !------------------------------------------------------------------------------
@@ -662,16 +680,20 @@
 !         Insert calls output routines (every timestep) here
 !
 #ifdef WETDEPO
+          if(VERB.gt.1)write(global_info,*)"Calling ThicknessCalculator_WetDepo."
           if(USE_WETDEPO) call ThicknessCalculator_WetDepo
 #endif
 !------------------------------------------------------------------------------
 
             ! SEE WHETHER THE ASH HAS HIT ANY AIRPORTS
+          if(VERB.gt.1)write(global_info,*)"Calling FirstAsh."
           call FirstAsh
 
             ! Track ash on vertical profiles
           if (nvprofiles.gt.0)then
+            if(VERB.gt.1)write(global_info,*)"Calling Calc_vprofile."
             call Calc_vprofile(itime)
+            if(VERB.gt.1)write(global_info,*)"Calling vprofilewriter."
             call vprofilewriter(itime)     !write out vertical profiles
           endif
         endif
@@ -684,6 +706,7 @@
         if(Output_at_WriteTimes.and.(NextWriteTime-time.lt.DT_MIN))then
             ! Generate output variables if we haven't already
           if(.not.Called_Gen_Output_Vars)then
+            if(VERB.gt.1)write(global_info,*)"Calling Gen_Output_Vars."
             call Gen_Output_Vars
           endif
 !------------------------------------------------------------------------------
@@ -691,21 +714,26 @@
 !         Insert calls output routines (every output-step) here
 !
 #ifdef WETDEPO
+          if(VERB.gt.1)write(global_info,*)"Calling ThicknessCalculator_WetDepo."
           if(USE_WETDEPO) call ThicknessCalculator_WetDepo
 #endif
 #ifdef VARDIFF
+          if(VERB.gt.1)write(global_info,*)"Calling Prep_output_VarDiff."
           if(useVarDiffH.or.useVarDiffV) call Prep_output_VarDiff
 #endif
 #ifdef WETDEPO
+          if(VERB.gt.1)write(global_info,*)"Calling Prep_output_WetDepo."
           if(USE_WETDEPO) call Prep_output_WetDepo
 #endif
 #ifdef SRC_RESUSP
           if(SourceType.eq.'resuspens')then
+            if(VERB.gt.1)write(global_info,*)"Calling Prep_output_Source_Resuspension."
             call Prep_output_Source_Resuspension
           endif
 #endif
 #ifdef SRC_GAS
           if(SourceType.eq.'gas')then
+            if(VERB.gt.1)write(global_info,*)"Calling Prep_output_Source_Gas."
             call Prep_output_Source_Gas
           endif
 #endif
@@ -723,12 +751,14 @@
           !WRITE SUMMARY INFORMATION ON MASS CONSERVATION EVERY log_step TIME STEPS
           if(mod(itime,log_step).eq.0) then
             if(.not.Called_Gen_Output_Vars)then
+              if(VERB.gt.1)write(global_info,*)"Calling Gen_Output_Vars."
               call Gen_Output_Vars
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
 !         Insert calls output routines (every log-step) here
 !
 #ifdef WETDEPO
+              if(VERB.gt.1)write(global_info,*)"Calling ThicknessCalculator_WetDepo."
               if(USE_WETDEPO) call ThicknessCalculator_WetDepo
 #endif
 !------------------------------------------------------------------------------
@@ -740,11 +770,14 @@
           if(time.gt.e_EndTime_final)then
             ! Doesn't make sense to flag bins as flushed out while the eruption is on-going
             if(.not.Called_Gen_Output_Vars)then
+              if(VERB.gt.1)write(global_info,*)"Calling Gen_Output_Vars."
               call Gen_Output_Vars
 #ifdef WETDEPO
+              if(VERB.gt.1)write(global_info,*)"Calling ThicknessCalculator_WetDepo."
               if(USE_WETDEPO) call ThicknessCalculator_WetDepo
 #endif
             endif
+            if(VERB.gt.1)write(global_info,*)"Calling Prune_GS."
             call Prune_GS
           endif
         else
@@ -755,9 +788,11 @@
         endif
 
         if(tot_vol.gt.EPS_SMALL)then
-          dep_percent_accumulated = dep_vol/tot_vol
+          !dep_percent_accumulated = dep_vol/tot_vol
+          aloft_percent_remaining = aloft_vol/tot_vol
         else
-          dep_percent_accumulated = 0.0_ip
+          !dep_percent_accumulated = 0.0_ip
+          aloft_percent_remaining = 1.0_ip
         endif
 
         ! Check stop conditions
@@ -767,7 +802,7 @@
          ! It is better to stop based on remaining ash aloft than amount
          ! deposited since if more than 1% blows out of the domain, this
          ! criterion would never be invoked.
-        StopConditions(1) = (aloft_vol/tot_vol.lt.(1.0_ip-StopValue))
+        StopConditions(1) = (aloft_percent_remaining.lt.(1.0_ip-StopValue))
            ! Normal stop condition if simulation exceeds alloted time
         StopConditions(2) = (time.ge.Simtime_in_hours)
            ! Normal stop conditionn when nothing is left to advect
@@ -783,20 +818,32 @@
                             (outflow_vol.lt.-1.0_ip*EPS_SMALL).or.&
                             (SourceCumulativeVol.lt.-1.0_ip*EPS_SMALL)
 
-        if(StopConditions(1).eqv..true.)then
+        !write(*,*)CheckConditions
+        !write(*,*)StopTimeLoop
+        !write(*,*)CheckConditions(1).eqv..true.,StopConditions(1).eqv..true.
+        if((CheckConditions(1).eqv..true.).and.&
+           (StopConditions(1).eqv..true.))then
+          write(*,*)"Setting StopTimeLoop = true for condition 1"
           StopTimeLoop = .true.
-        elseif(StopConditions(2).eqv..true.)then
+        elseif((CheckConditions(2).eqv..true.).and.&
+               (StopConditions(2).eqv..true.))then
+          write(*,*)"Setting StopTimeLoop = true for condition 2"
           StopTimeLoop = .true.
-        elseif(StopConditions(3).eqv..true.)then
+        elseif((CheckConditions(3).eqv..true.).and.&
+               (StopConditions(3).eqv..true.))then
+          write(*,*)"Setting StopTimeLoop = true for condition 3"
           StopTimeLoop = .true.
-        elseif(StopConditions(4).eqv..true.)then
+        elseif((CheckConditions(4).eqv..true.).and.&
+               (StopConditions(4).eqv..true.))then
+          write(*,*)"Setting StopTimeLoop = true for condition 4"
           StopTimeLoop = .true.
-        elseif(StopConditions(5).eqv..true.)then
+        elseif((CheckConditions(5).eqv..true.).and.&
+               (StopConditions(5).eqv..true.))then
+          write(*,*)"Setting StopTimeLoop = true for condition 5"
           StopTimeLoop = .true.
         else
           StopTimeLoop = .false.
         endif
-
       enddo  !loop over itime
               !  ((dep_percent_accumulated.le.StopValue).and. &
               !    (time.lt.Simtime_in_hours)        .and. &
@@ -806,11 +853,13 @@
       ntmax = itime
 
       write(global_info,*)"Time integration completed for the following reason:"
-      if(StopConditions(1).eqv..true.)then
+      if((CheckConditions(1).eqv..true.).and.&
+         (StopConditions(1).eqv..true.))then
         ! Normal stop condition set by user tracking the deposit
         write(global_info,*)"Percent accumulated/exited exceeds ",StopValue
       endif
-      if(StopConditions(2).eqv..true.)then
+      if((CheckConditions(2).eqv..true.).and.&
+         (StopConditions(2).eqv..true.))then
         ! Normal stop condition if simulation exceeds alloted time
         write(global_info,*)"time.le.Simtime_in_hours"
         write(global_info,*)"              Time = ",real(time,kind=4)
@@ -819,12 +868,14 @@
         write(global_log,*)"              Time = ",real(time,kind=4)
         write(global_log,*)"  Simtime_in_hours = ",real(Simtime_in_hours,kind=4)
       endif
-      if(StopConditions(3).eqv..true.)then
+      if((CheckConditions(3).eqv..true.).and.&
+         (StopConditions(3).eqv..true.))then
         ! Normal stop condition when nothing is left to advect
         write(global_info,*)"No ash species remain aloft."
         write(global_log,*)"No ash species remain aloft."
       endif
-      if(StopConditions(4).eqv..true.)then
+      if((CheckConditions(4).eqv..true.).and.&
+         (StopConditions(4).eqv..true.))then
         ! Error stop condition if the concen and outflow do not match the source
         write(global_info,*)"Cummulative source volume does not match aloft + outflow"
         write(global_info,*)" tot_vol = ",tot_vol
@@ -834,7 +885,8 @@
         write(global_info,*)" e_Volume = ",e_Volume
         stop 1
       endif
-      if(StopConditions(5).eqv..true.)then
+      if((CheckConditions(5).eqv..true.).and.&
+         (StopConditions(5).eqv..true.))then
         ! Error stop condition if any volume measure is negative
         write(global_info,*)"One of the volume measures is negative."
         write(global_info,*)"        dep_vol = ",dep_vol
