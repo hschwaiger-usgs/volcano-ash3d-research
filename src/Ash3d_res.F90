@@ -47,7 +47,7 @@
            Allocate_Tephra,&
            Allocate_Tephra_Met,&
            Prune_GS
-
+	   
       use Atmosphere,    only : &
            Allocate_Atmosphere_Met
 
@@ -161,7 +161,6 @@
           "CFL condition : ",CFL
       endif
 
-      !dep_percent_accumulated = 0.0_ip
       aloft_percent_remaining = 1.0_ip
       SourceCumulativeVol     = 0.0_ip
 
@@ -788,20 +787,14 @@
         endif
 
         if(tot_vol.gt.EPS_SMALL)then
-          !dep_percent_accumulated = dep_vol/tot_vol
           aloft_percent_remaining = aloft_vol/tot_vol
         else
-          !dep_percent_accumulated = 0.0_ip
           aloft_percent_remaining = 1.0_ip
         endif
 
         ! Check stop conditions
         !  If any of these is true, then the time loop will stop
-           ! Normal stop condition set by user tracking the deposit
-        !StopConditions(1) = (dep_percent_accumulated.gt.StopValue)
-         ! It is better to stop based on remaining ash aloft than amount
-         ! deposited since if more than 1% blows out of the domain, this
-         ! criterion would never be invoked.
+           ! Stops if there is less than 1% of ash aloft in the domain
         StopConditions(1) = (aloft_percent_remaining.lt.(1.0_ip-StopValue))
            ! Normal stop condition if simulation exceeds alloted time
         StopConditions(2) = (time.ge.Simtime_in_hours)
@@ -818,32 +811,25 @@
                             (outflow_vol.lt.-1.0_ip*EPS_SMALL).or.&
                             (SourceCumulativeVol.lt.-1.0_ip*EPS_SMALL)
 
-        !write(*,*)CheckConditions
-        !write(*,*)StopTimeLoop
-        !write(*,*)CheckConditions(1).eqv..true.,StopConditions(1).eqv..true.
         if((CheckConditions(1).eqv..true.).and.&
            (StopConditions(1).eqv..true.))then
-          write(*,*)"Setting StopTimeLoop = true for condition 1"
           StopTimeLoop = .true.
         elseif((CheckConditions(2).eqv..true.).and.&
                (StopConditions(2).eqv..true.))then
-          write(*,*)"Setting StopTimeLoop = true for condition 2"
           StopTimeLoop = .true.
         elseif((CheckConditions(3).eqv..true.).and.&
                (StopConditions(3).eqv..true.))then
-          write(*,*)"Setting StopTimeLoop = true for condition 3"
           StopTimeLoop = .true.
         elseif((CheckConditions(4).eqv..true.).and.&
                (StopConditions(4).eqv..true.))then
-          write(*,*)"Setting StopTimeLoop = true for condition 4"
           StopTimeLoop = .true.
         elseif((CheckConditions(5).eqv..true.).and.&
                (StopConditions(5).eqv..true.))then
-          write(*,*)"Setting StopTimeLoop = true for condition 5"
           StopTimeLoop = .true.
         else
           StopTimeLoop = .false.
         endif
+
       enddo  !loop over itime
               !  ((dep_percent_accumulated.le.StopValue).and. &
               !    (time.lt.Simtime_in_hours)        .and. &
