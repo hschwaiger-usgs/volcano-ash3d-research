@@ -44,9 +44,9 @@ SYSTEM = gfortran
 #      OMPOPT   : includes optimizations flags for fastest runtime and OpenMP directives
 #                 To run, enter: env OMP_NUM_THREADS=4 Ash3d input_file.inp
 #    This variable cannot be left blank
-RUN = DEBUG
+#RUN = DEBUG
 #RUN = PROF
-#RUN = OPT
+RUN = OPT
 #RUN = OMPOPT
 # This is the location of the USGS libraries and include files
 # This might be different from the INSTALLDIR path if you want to link to special MetReader
@@ -55,8 +55,7 @@ USGSROOT=/opt/USGS
 
 # This is the location of the Ash3d core code source files that we will build this
 # research branch with.
-#ASH3dCCSRC=~/work/USGS/Software_repos/Ash3d/src
-ASH3dCCSRC=~/work/USGS/Software_repos/GIT_sandboxes/Ash3d/src
+ASH3dCCSRC=~/work/USGS/Software/GIT/Ash3d/src
 #ASH3dCCSRC=/home/ash3d/Ash3d/GIT/Ash3d/src
 
 INSTALLDIR=/opt/USGS/Ash3d

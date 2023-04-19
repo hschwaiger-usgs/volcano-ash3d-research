@@ -578,7 +578,7 @@
          MR_vy_metP_last,MR_vy_metP_next,MR_vx_metP_next,&
            MR_DelMetP_Dx,&
            MR_DelMetP_Dy,&
-           MR_Regrid_MetP_to_CompGrid
+           MR_Regrid_MetP_to_CompH
 
       implicit none
 
@@ -617,7 +617,7 @@
           call Eddy_diff
            ! Now resample onto computational grid
           MR_dum3d_metP = Khz_meso_next_step_MetP_sp
-          call MR_Regrid_MetP_to_CompGrid(MR_iMetStep_Now)
+          call MR_Regrid_MetP_to_CompH(MR_iMetStep_Now)
           Khz_meso_next_step_sp = MR_dum3d_compH
           if(IsLatLon) then
             Khz_meso_next_step_sp(1:nxmax,1:nymax,1:nzmax) = &
@@ -659,7 +659,7 @@
         call Eddy_diff
          ! Now resample onto computational grid
         MR_dum3d_metP = Khz_meso_next_step_MetP_sp
-        call MR_Regrid_MetP_to_CompGrid(MR_iMetStep_Now+1)
+        call MR_Regrid_MetP_to_CompH(MR_iMetStep_Now+1)
         Khz_meso_next_step_sp = MR_dum3d_compH
         if(IsLatLon) then
           Khz_meso_next_step_sp(1:nxmax,1:nymax,1:nzmax) = &
@@ -714,7 +714,7 @@
 
       use MetReader,     only : &
          MR_iMetStep_Now,MR_dum3d_MetP,MR_dum3d_compH,&
-           MR_Regrid_MetP_to_CompGrid
+           MR_Regrid_MetP_to_CompH
 
       implicit none
 
@@ -748,7 +748,7 @@
 
           call Calc_Vert_Diff(0)
           MR_dum3d_MetP = Kv_meso_last_step_MetP_sp
-          call MR_Regrid_MetP_to_CompGrid(MR_iMetStep_Now)
+          call MR_Regrid_MetP_to_CompH(MR_iMetStep_Now)
           Kv_meso_last_step_sp = MR_dum3d_compH
 
           first_time = .false.
@@ -767,7 +767,7 @@
                                                   !  and L_MonOb_meso_next_step_Met_sp
         call Calc_Vert_Diff(1)
         MR_dum3d_MetP = Kv_meso_next_step_MetP_sp
-        call MR_Regrid_MetP_to_CompGrid(MR_iMetStep_Now+1)
+        call MR_Regrid_MetP_to_CompH(MR_iMetStep_Now+1)
         Kv_meso_next_step_sp = MR_dum3d_compH
 
       endif

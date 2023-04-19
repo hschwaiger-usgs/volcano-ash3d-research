@@ -732,7 +732,7 @@
            MR_Read_2d_Met_Variable,&
            MR_Regrid_Met2d_to_Comp2d,&
            MR_Read_2d_Met_Variable,&
-           MR_Regrid_MetP_to_CompGrid
+           MR_Regrid_MetP_to_CompH
 
       implicit none
 
@@ -808,7 +808,7 @@
           prate_Wat_MetP_sp(:,:,:) = MR_dum3d_MetP(:,:,:)
             ! This part is only needed for writing p0 to outfile
           MR_dum3d_MetP = prate_Wat_MetP_sp
-          call MR_Regrid_MetP_to_CompGrid(MR_iMetStep_Now)
+          call MR_Regrid_MetP_to_CompH(MR_iMetStep_Now)
           precipitation_rate_3d(:,:,:) = MR_dum3d_compH
           precipitation_rate_2d(:,:)   = precipitation_rate_3d(:,:,5)
         else
@@ -823,7 +823,7 @@
         do l=1,nsmax
           if(.not.IsAloft(l)) cycle
           MR_dum3d_MetP(:,:,:) = real(scav_coeff_MetP(:,:,:,l),kind=sp)
-          call MR_Regrid_MetP_to_CompGrid(MR_iMetStep_Now)
+          call MR_Regrid_MetP_to_CompH(MR_iMetStep_Now)
           scav_coeff_Liq_meso_last_step(:,:,:,l) = MR_dum3d_compH(:,:,:)
         enddo
 
@@ -833,7 +833,7 @@
           prate_Wat_MetP_sp = MR_dum3d_MetP
             ! This part is only needed for writing p0 to outfile
           !MR_dum3d_MetP = prate_Wat_MetP_sp
-          !call MR_Regrid_MetP_to_CompGrid(MR_iMetStep_Now+1)
+          !call MR_Regrid_MetP_to_CompH(MR_iMetStep_Now+1)
           !precipitation_rate_3d(:,:,:) = MR_dum3d_compH
           !precipitation_rate_2d(:,:)   = precipitation_rate_3d(:,:,5)
         else
@@ -846,7 +846,7 @@
         call Set_Scav_Coeff(MR_iMetStep_Now+1,2)
         do l=1,nsmax
           MR_dum3d_MetP(:,:,:) = real(scav_coeff_MetP(:,:,:,l),kind=sp)
-          call MR_Regrid_MetP_to_CompGrid(MR_iMetStep_Now+1)
+          call MR_Regrid_MetP_to_CompH(MR_iMetStep_Now+1)
           scav_coeff_Liq_meso_next_step(:,:,:,l) = MR_dum3d_compH(:,:,:)
         enddo
 
