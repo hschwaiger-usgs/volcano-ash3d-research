@@ -118,7 +118,10 @@
         read(llinebuffer,*)testkey
       enddo
 
-      write(global_info,*)"Start reading satellite mass loading."
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Start reading satellite mass loading."
+      endif;enddo
+
       ! read the satellite-specific source parameters
       ! Note: some of these values may be reset depending on the settings
       !       of the block of the input file OPTMOD=SRC_SAT
@@ -129,12 +132,14 @@
       read(10,'(a130)')lllinebuffer
       SatInfile = adjustl(trim(lllinebuffer))
 
-      write(global_info,*)"     Satellite source time = ",iyear,imonth,iday,real(hour,kind=sp)
-      write(global_info,*)"                  Duration = ",e_Duration(1)
-      write(global_info,*)"    Maximum height allowed = ",e_PlumeHeight(1)
-      write(global_info,*)"       Ash cloud thickness = ",AshCloudThickness
-      write(global_info,*)"                Pixel area = ",AshCloudPixArea
-      write(global_info,*)"  Satellite data file name = ",SatInfile
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"     Satellite source time = ",iyear,imonth,iday,real(hour,kind=sp)
+        write(outlog(io),*)"                  Duration = ",e_Duration(1)
+        write(outlog(io),*)"    Maximum height allowed = ",e_PlumeHeight(1)
+        write(outlog(io),*)"       Ash cloud thickness = ",AshCloudThickness
+        write(outlog(io),*)"                Pixel area = ",AshCloudPixArea
+        write(outlog(io),*)"  Satellite data file name = ",SatInfile
+      endif;enddo
 
       ! Initialize some eruption values
       e_Duration(1)  = 0.0_ip
@@ -144,7 +149,9 @@
 
       ! Now read to the end of the input file and read the Optional Modudle
       ! block
-      write(global_info,*)"    Searching for OPTMOD=SRC_SAT"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"    Searching for OPTMOD=SRC_SAT"
+      endif;enddo
       nmods = 0
       read(10,'(a80)',iostat=ios)linebuffer
       do while(ios.eq.0)
@@ -167,13 +174,15 @@
 
       return
 
-1900  write(global_info,*)  'error: cannot find input file: ',infile
-      write(global_info,*)  'Program stopped'
-      write(global_log,*)  'error: cannot find input file: ',infile
-      write(global_log,*)  'Program stopped'
+1900  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*)  'error: cannot find input file: ',infile
+        write(errlog(io),*)  'Program stopped'
+      endif;enddo
       stop 1
-1910  write(global_info,*)  'error reading start time, duration, height or',&
-                  ' volume of an eruptive pulse.  Program stopped'
+1910  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(outlog(io),*)  'error reading start time, duration, height or',&
+                    ' volume of an eruptive pulse.  Program stopped'
+      endif;enddo
       stop 1
 
       end subroutine input_data_Source_Satellite
@@ -191,9 +200,11 @@
 
       implicit none
 
-      write(global_info,*)"--------------------------------------------------"
-      write(global_info,*)"---------- ALLOCATE_SrcSat ------------------------"
-      write(global_info,*)"--------------------------------------------------"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"--------------------------------------------------"
+        write(outlog(io),*)"---------- ALLOCATE_SrcSat ------------------------"
+        write(outlog(io),*)"--------------------------------------------------"
+      endif;enddo
 
       ! This only allocates a few array, but it also sets the
       ! variables for the output file
@@ -361,10 +372,12 @@
 
       real(kind=ip) :: dz
 
-      write(global_info,*)"About to open sat file : ",SatInfile
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"About to open sat file : ",SatInfile
+      endif;enddo
       nSTAT=nf90_open(SatInfile,NF90_NOWRITE, ncid)
-      if(nSTAT.ne.0) &
-        write(global_log,*)'ERROR: open satellite file: ',nf90_strerror(nSTAT)
+!      if(nSTAT.ne.0) &
+!        write(global_log,*)'ERROR: open satellite file: ',nf90_strerror(nSTAT)
 
       if(SatData_Type.eq.1)then
       ! Get dim ids and sizes
@@ -372,25 +385,25 @@
       if(nSTAT.ne.0) &
         write(global_log,*)'ERROR: inq_varid nx: ',nf90_strerror(nSTAT)
       nSTAT = nf90_Inquire_Dimension(ncid,x_dim_id,name=name_dum,len=sat_nx)
-      if(nSTAT.ne.0) &
-        write(global_info,*)'ERROR: Inquire_Dimension nx: ', &
-                             nf90_strerror(nSTAT)
+!      if(nSTAT.ne.0) &
+!        write(outlog(io),*)'ERROR: Inquire_Dimension nx: ', &
+!                             nf90_strerror(nSTAT)
 
       nSTAT = nf90_inq_dimid(ncid,"ny",y_dim_id)
       if(nSTAT.ne.0) &
         write(global_log,*)'ERROR: inq_varid t: ',nf90_strerror(nSTAT)
       nSTAT = nf90_Inquire_Dimension(ncid,y_dim_id,name=name_dum,len=sat_ny)
-      if(nSTAT.ne.0) &
-        write(global_info,*)'ERROR: Inquire_Dimension ny: ', &
-                             nf90_strerror(nSTAT)
+!      if(nSTAT.ne.0) &
+!        write(outlog(io),*)'ERROR: Inquire_Dimension ny: ', &
+!                             nf90_strerror(nSTAT)
 
       nSTAT = nf90_inq_dimid(ncid,"single",s_dim_id)
       if(nSTAT.ne.0) &
         write(global_log,*)'ERROR: inq_varid single: ',nf90_strerror(nSTAT)
       nSTAT = nf90_Inquire_Dimension(ncid,s_dim_id,name=name_dum,len=sat_ns)
-      if(nSTAT.ne.0) &
-        write(global_info,*)'ERROR: Inquire_Dimension ns: ', &
-                             nf90_strerror(nSTAT)
+!      if(nSTAT.ne.0) &
+!        write(outlog(io),*)'ERROR: Inquire_Dimension ns: ', &
+!                             nf90_strerror(nSTAT)
 
 
       ! Get variable ids
@@ -433,18 +446,18 @@
       if(nSTAT.ne.0) &
         write(global_log,*)'ERROR: inq_varid TOTAL_MASS: ',nf90_strerror(nSTAT)
 
-      !write(global_info,*)x_dim_id,y_dim_id,s_dim_id
-      !write(global_info,*)lat_var_id,lon_var_id
-      !write(global_info,*)AshProb_var_id,AshHeight_var_id,AshMassLoad_var_id,AshEffecRad_var_id
-      !write(global_info,*)TotalArea_var_id,TotalMass_var_id
+      !write(outlog(io),*)x_dim_id,y_dim_id,s_dim_id
+      !write(outlog(io),*)lat_var_id,lon_var_id
+      !write(outlog(io),*)AshProb_var_id,AshHeight_var_id,AshMassLoad_var_id,AshEffecRad_var_id
+      !write(outlog(io),*)TotalArea_var_id,TotalMass_var_id
 
-      !write(global_info,*)sat_nx,sat_ny,sat_ns
-      !write(global_info,*)LAT_MissValue
-      !write(global_info,*)LON_MissValue
-      !write(global_info,*)AshProb_MissValue
-      !write(global_info,*)AshHeight_MissValue
-      !write(global_info,*)AshMassLoad_MissValue
-      !write(global_info,*)AshEffecRad_MissValue
+      !write(outlog(io),*)sat_nx,sat_ny,sat_ns
+      !write(outlog(io),*)LAT_MissValue
+      !write(outlog(io),*)LON_MissValue
+      !write(outlog(io),*)AshProb_MissValue
+      !write(outlog(io),*)AshHeight_MissValue
+      !write(outlog(io),*)AshMassLoad_MissValue
+      !write(outlog(io),*)AshEffecRad_MissValue
 
       allocate(dum2d_in(sat_nx,sat_ny))
       allocate(lon_SatIn(sat_nx,sat_ny))
@@ -489,8 +502,10 @@
          AshEffecRad_SatIn(:,:) = dum2d_in(:,:)
 
       ! Double-check the total mass and area
-      write(global_info,*)"Total Area Reported = ",TotalArea," km^2"
-      write(global_info,*)"Total Mass Reported = ",TotalMass," Tg"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Total Area Reported = ",TotalArea," km^2"
+        write(outlog(io),*)"Total Mass Reported = ",TotalMass," Tg"
+      endif;enddo
       dum_sp = 0.0_sp
       dum_int = 0
       do i=1,sat_nx
@@ -504,10 +519,12 @@
           endif
         enddo
       enddo
-      write(global_info,*)"Num of non-zero values  = ",dum_int
-      write(global_info,*)"Mass sum from loading   = ",dum_sp," Tg"
-      write(global_info,*)"Mass ratio (given/calc) = ",dum_sp/TotalMass
-      write(global_info,*)"Area ratio (given/calc) = ",(dum_int*AshCloudPixArea)/TotalArea
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Num of non-zero values  = ",dum_int
+        write(outlog(io),*)"Mass sum from loading   = ",dum_sp," Tg"
+        write(outlog(io),*)"Mass ratio (given/calc) = ",dum_sp/TotalMass
+        write(outlog(io),*)"Area ratio (given/calc) = ",(dum_int*AshCloudPixArea)/TotalArea
+      endif;enddo
 
       ! Close file
       nSTAT = nf90_close(ncid)
@@ -516,11 +533,15 @@
                               nf90_strerror(nSTAT)
 
       endif
-      write(global_info,*)"Successfully read satellite data."
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Successfully read satellite data."
+      endif;enddo
 
       ! Now generate the mapping of each satellite pixel to the computational
       ! grid
-      write(global_info,*)"KLUDGE"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"KLUDGE"
+      endif;enddo
       dz = dz_vec_pd(1)
       iparts = floor(AshCloudThickness/dz)
       frac   = 1.0/real(iparts)
@@ -574,8 +595,10 @@
                    kappa_pd(ix,iy,iz)                   * & ! in kg/km3
                    frac                                  ! partitioned
             else
-              write(global_info,*)"Satellite load not in domain: ",i,j,AshMassLoad_SatIn(i,j)
-              write(global_info,*)"                              ",lon_SatIn(i,j),lat_SatIn(i,j)
+              do io=1,2;if(VB(io).le.verbosity_info)then
+                write(outlog(io),*)"Satellite load not in domain: ",i,j,AshMassLoad_SatIn(i,j)
+                write(outlog(io),*)"                              ",lon_SatIn(i,j),lat_SatIn(i,j)
+              endif;enddo
             endif
           endif
         enddo
@@ -633,12 +656,10 @@
 
             ig = 1            ! Currently, just put everything in the smallest gs bin
             pixmass = sum(AshMass_in_CompCell(i,j,:))
-            !write(global_info,*)i,j,npix,pixmass
             do k=1,nzmax
               frac = Gaussian_Frac(z_cc_pd(k)-dz*0.5_ip, &
                                    z_cc_pd(k)+dz*0.5_ip, &
                                    mean_height,var_height)
-              !write(global_info,*)"     ",k,frac
               concen_pd(i,j,k,ig,ts1) = &
                    concen_pd(i,j,k,ig,ts1) + &
                    pixmass                           / & ! in kg
@@ -659,8 +680,10 @@
       concen_pd(:,:,:,:,:) = 0.0_ip
 
 
-      write(global_info,*)&
-       "Successfully loaded satellite data onto computational grid."
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)&
+         "Successfully loaded satellite data onto computational grid."
+      endif;enddo
 
       end subroutine Read_SatMassLoading
 

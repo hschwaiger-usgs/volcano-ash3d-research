@@ -80,7 +80,10 @@
 
       open(unit=10,file=infile,status='old',err=1900)
 
-      write(global_info,*)"    Searching for OPTMOD=LC"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"    Searching for OPTMOD=LC"
+      endif;enddo
+
       nmods = 0
       read(10,'(a80)',iostat=ios)linebuffer
       do while(ios.eq.0)
@@ -99,17 +102,23 @@
       enddo
 
       useLandCover = .false.
-      write(global_info,*)"    Continue reading input file for LandCover block"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"    Continue reading input file for LandCover block"
+      endif;enddo
        ! Check if we're going to use land classification data
         read(10,'(a80)',iostat=ios,err=2010)linebuffer
 
         read(linebuffer,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           useLandCover = .true.
-          write(global_info,*)"    Using Land Cover data"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    Using Land Cover data"
+          endif;enddo
         elseif(answer(1:2).eq.'no') then
           useLandCover = .false.
-          write(global_info,*)"    Not using global Land Cover data."
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    Not using global Land Cover data."
+          endif;enddo
         else
           go to 2011
         endif
@@ -119,7 +128,9 @@
           read(linebuffer,*) LandCover_Format
           read(10,'(a80)',iostat=ios,err=2010)linebuffer
           read(linebuffer,*) LC_dir
-          write(global_info,*)"    LandCover data located in : ",LC_dir
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    LandCover data located in : ",LC_dir
+          endif;enddo
         endif
 
 2010  continue
@@ -127,16 +138,18 @@
 
       return
 
-1900  write(global_info,*)  'error: cannot find input file: ',infile
-      write(global_info,*)  'Program stopped'
-      write(global_log,*)  'error: cannot find input file: ',infile
-      write(global_log,*)  'Program stopped'
+1900  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*)  'error: cannot find input file: ',infile
+        write(errlog(io),*)  'Program stopped'
+      endif;enddo
       stop 1
 
-2011  write(global_log,*) 'Error reading whether to use land cover.'
-      write(global_log,*) 'Answer must be yes or no.'
-      write(global_log,*) 'You gave:',linebuffer
-      write(global_log,*) 'Program stopped'
+2011  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*) 'Error reading whether to use land cover.'
+        write(errlog(io),*) 'Answer must be yes or no.'
+        write(errlog(io),*) 'You gave:',linebuffer
+        write(errlog(io),*) 'Program stopped'
+      endif;enddo
       stop 1
 
 
@@ -159,9 +172,11 @@
 
       implicit none
 
-      write(global_info,*)"--------------------------------------------------"
-      write(global_info,*)"---------- ALLOCATE_LC ---------------------------"
-      write(global_info,*)"--------------------------------------------------"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"--------------------------------------------------"
+        write(outlog(io),*)"---------- ALLOCATE_LC ---------------------------"
+        write(outlog(io),*)"--------------------------------------------------"
+      endif;enddo
 
       allocate(LC_grid(0:nxmax+2,0:nymax+2)); LC_grid = 0
 
@@ -267,7 +282,9 @@
       character(len=130),dimension(3) :: LC_files
       integer :: open_status
 
-      write(global_info,*)"Inside load_LC"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Inside load_LC"
+      endif;enddo
 
       write(LC_files(1),116)trim(adjustl(LC_dir)),&
                                "/gl-latlong-1deg-landcover.bsq"
@@ -317,9 +334,23 @@
         !  LandCover_Format = 3
         !endif
       endif
-      if(LandCover_Format.eq.1)write(global_info,*)"Using 1-deg landcover data"
-      if(LandCover_Format.eq.2)write(global_info,*)"Using 8-km landcover data"
-      if(LandCover_Format.eq.3)write(global_info,*)"Using 1-km landcover data"
+      if(LandCover_Format.eq.1)then
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"Using 1-deg landcover data"
+        endif;enddo
+      elseif(LandCover_Format.eq.2)then
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"Using 8-km landcover data"
+        endif;enddo
+      elseif(LandCover_Format.eq.3)then
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"Using 1-km landcover data"
+        endif;enddo
+      else
+        do io=1,2;if(VB(io).le.verbosity_info)then
+
+        endif;enddo
+      endif
 
         ! Check to see if the domain straddles the anti-meridian
       if (minlon_LC.lt.180.0_ip.and.maxlon_LC.gt.180.0_ip)then
@@ -392,20 +423,28 @@
       endif
 
       ! Before we try to open the file, check its existance
-      write(global_info,*)"Looking for LC file: ",adjustl(trim(LC_files(LandCover_Format)))
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Looking for LC file: ",adjustl(trim(LC_files(LandCover_Format)))
+      endif;enddo
       inquire( file=adjustl(trim(LC_files(LandCover_Format))), exist=IsThere )
       if(.not.IsThere)then
-        write(global_info,*)"LC ERROR: Could not find LandCover file ",&
-                    adjustl(trim(LC_files(LandCover_Format)))
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"LC ERROR: Could not find LandCover file ",&
+                      adjustl(trim(LC_files(LandCover_Format)))
+        endif;enddo
         stop 1
       else
-        write(global_info,*)"  Found it!"
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"  Found it!"
+        endif;enddo
       endif
 
       open(unit=30,file=trim(adjustl(LC_files(LandCover_Format))),access='direct',&
            recl=nlon_tot,iostat=open_status,status='old')
       if ( open_status /= 0 ) then
-         print *, 'Could not open ',trim(adjustl(LC_files(LandCover_Format))),' for reading.'
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)'Could not open ',trim(adjustl(LC_files(LandCover_Format))),' for reading.'
+        endif;enddo
         stop 1
       endif
 
@@ -591,6 +630,9 @@
             endif
           else
             ! Should not be here
+            do io=1,2;if(VB(io).le.verbosity_error)then
+              write(errlog(io),*)"Sum is less than 0; shouldn't be here."
+            endif;enddo
             stop 1
           endif
         enddo

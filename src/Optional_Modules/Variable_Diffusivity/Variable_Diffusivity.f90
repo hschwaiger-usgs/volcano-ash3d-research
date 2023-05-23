@@ -139,7 +139,9 @@
 
       open(unit=10,file=infile,status='old',err=1900)
 
-      write(global_info,*)"    Searching for OPTMOD=VARDIFF"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"    Searching for OPTMOD=VARDIFF"
+      endif;enddo
       nmods = 0
       read(10,'(a80)',iostat=ios)linebuffer
       do while(ios.eq.0)
@@ -159,73 +161,87 @@
 
       useVarDiffH = .false.
       useVarDiffV = .false.
-      write(global_info,*)"    Continue reading input file for VarDiff block"
-        !write(global_info,*)linebuffer
-       ! Check if we're going to use variable diffusivity
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"    Continue reading input file for VarDiff block"
+      endif;enddo
+
+      !Check if we're going to use variable diffusivity
+      read(10,'(a80)',iostat=ios,err=2010)linebuffer
+      read(linebuffer,'(a3)',err=2011) answer
+      if (answer.eq.'yes') then
+        useVarDiffH = .true.
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"    Using horizontal variable diffusivity"
+        endif;enddo
+      elseif(answer(1:2).eq.'no') then
+        useVarDiffH = .false.
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"    Not using horizontal variable diffusivity"
+        endif;enddo
+      else
+        goto 2011
+      endif
+      read(10,'(a80)',iostat=ios,err=2010)linebuffer
+      read(linebuffer,'(a3)',err=2011) answer
+      if (answer.eq.'yes') then
+        useVarDiffV = .true.
+        useTemperature = .true.
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"    Using vertical variable diffusivity"
+        endif;enddo
+      elseif(answer(1:2).eq.'no') then
+        useVarDiffV = .false.
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"    Not using vertical variable diffusivity"
+        endif;enddo
+      else
+        goto 2011
+      endif
+
+      if (useVarDiffH.or.useVarDiffV) then
+        ! Check if we're using variable diffusivity, then get the constants
         read(10,'(a80)',iostat=ios,err=2010)linebuffer
-        read(linebuffer,'(a3)',err=2011) answer
-        if (answer.eq.'yes') then
-          useVarDiffH = .true.
-          write(global_info,*)"    Using horizontal variable diffusivity"
-        elseif(answer(1:2).eq.'no') then
-          useVarDiffH = .false.
-          write(global_info,*)"    Not using horizontal variable diffusivity"
-        else
-          goto 2011
-        endif
+        read(linebuffer,*,iostat=ioerr) KH_SmagC
         read(10,'(a80)',iostat=ios,err=2010)linebuffer
-        read(linebuffer,'(a3)',err=2011) answer
-        if (answer.eq.'yes') then
-          useVarDiffV = .true.
-          useTemperature = .true.
-          write(global_info,*)"    Using vertical variable diffusivity"
-        elseif(answer(1:2).eq.'no') then
-          useVarDiffV = .false.
-          write(global_info,*)"    Not using vertical variable diffusivity"
-        else
-          goto 2011
-        endif
+        read(linebuffer,*,iostat=ioerr) vonKarman
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer
+        read(linebuffer,*,iostat=ioerr) LambdaC
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer
+        read(linebuffer,*,iostat=ioerr) RI_CRIT
 
-        if (useVarDiffH.or.useVarDiffV) then
-          ! Check if we're using variable diffusivity, then get the constants
-          read(10,'(a80)',iostat=ios,err=2010)linebuffer
-          read(linebuffer,*,iostat=ioerr) KH_SmagC
-          read(10,'(a80)',iostat=ios,err=2010)linebuffer
-          read(linebuffer,*,iostat=ioerr) vonKarman
-          read(10,'(a80)',iostat=ios,err=2010)linebuffer
-          read(linebuffer,*,iostat=ioerr) LambdaC
-          read(10,'(a80)',iostat=ios,err=2010)linebuffer
-          read(linebuffer,*,iostat=ioerr) RI_CRIT
+        !KH_SmagC  = 0.9
+        !vonKarman = 0.4
+        !LambdaC   = 30.0
+        !RI_CRIT   = 0.25
+        !do io=1,2;if(VB(io).le.verbosity_info)then
+        !  write(outlog(io),*)KH_SmagC
+        !  write(outlog(io),*)vonKarman
+        !  write(outlog(io),*)LambdaC
+        !  write(outlog(io),*)RI_CRIT
+        !endif;enddo
 
-          !KH_SmagC  = 0.9
-          !vonKarman = 0.4
-          !LambdaC   = 30.0
-          !RI_CRIT   = 0.25
-          !write(global_info,*)KH_SmagC
-          !write(global_info,*)vonKarman
-          !write(global_info,*)LambdaC
-          !write(global_info,*)RI_CRIT
+        ! We will want to reuse velocities on the metP grid for this module
+        MR_Save_Velocities = .true.
 
-          ! We will want to reuse velocities on the metP grid for this module
-          MR_Save_Velocities = .true.
-
-        endif
+      endif
 
 2010  continue
       close(10)
 
       return
 
-1900  write(global_info,*)  'error: cannot find input file: ',infile
-      write(global_info,*)  'Program stopped'
-      write(global_log,*)  'error: cannot find input file: ',infile
-      write(global_log,*)  'Program stopped'
+1900  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*)  'error: cannot find input file: ',infile
+        write(errlog(io),*)  'Program stopped'
+      endif;enddo
       stop 1
 
-2011  write(global_log,*) 'Error reading whether to use variable diffusivity.'
-      write(global_log,*) 'Answer must be yes or no.'
-      write(global_log,*) 'You gave:',linebuffer
-      write(global_log,*) 'Program stopped'
+2011  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*) 'Error reading whether to use variable diffusivity.'
+        write(errlog(io),*) 'Answer must be yes or no.'
+        write(errlog(io),*) 'You gave:',linebuffer
+        write(errlog(io),*) 'Program stopped'
+      endif;enddo
       stop 1
 
       end subroutine input_data_VarDiff
@@ -252,9 +268,11 @@
       implicit none
 
 
-      write(global_info,*)"--------------------------------------------------"
-      write(global_info,*)"---------- ALLOCATE_VARDIFF_MET ------------------"
-      write(global_info,*)"--------------------------------------------------"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"--------------------------------------------------"
+        write(outlog(io),*)"---------- ALLOCATE_VARDIFF_MET ------------------"
+        write(outlog(io),*)"--------------------------------------------------"
+      endif;enddo
 
       allocate(dVel_dz_MetP_sp(nx_submet,ny_submet,np_fullmet))
       allocate(du_dx_MetP_sp(nx_submet,ny_submet,np_fullmet))
@@ -499,15 +517,12 @@
              FricVel    = real(FricVel_meso_next_step_Met_sp(i,j),kind=ip)  ! m/s
           endif
 
-          !write(global_info,*)"Ri_col(k),z_col(k),dv_dz_col(k),PBLz,L_MonOb,FricVel"
           do k = np_fullmet,1,-1
-            !write(global_info,*)Ri_col(k),z_col(k),dv_dz_col(k),PBLz,L_MonOb,FricVel
             ! Determine which form of Kz based on height relative to
             ! atmospheric boundary layer
             if(z_col(k).le.0.0_sp)then
                 ! If point is at a nengative gpm, then assign the kz from the
                 ! node above
-              !write(global_info,*)z_col(k),Ri_col(k),PBLz,L_MonOb
               Kz_tmp = Kv_col(k+1)
             elseif(z_col(k)*KM_2_M.lt.PBLz)then
               ! Within the PBL, use similarity theory
@@ -516,14 +531,12 @@
 
               !PBL_coeff = PBL_Similarity_Kansas(z_on_L)
               !PBL_coeff = PBL_Similarity_Kansas_Ri(Ri_col_windp(k))
-              !if (VERB.gt.2) write(global_info,*)"Calling PBL_Similarity_Ulke"
               !PBL_coeff = PBL_Similarity_Ulke(z_col(k),PBLz,L_MonOb)
               PBL_coeff = Phi_WindShear_NonDim(z_col(k),PBLz,L_MonOb, &
                                     Coeff_Stab,Coeff_UnStab,Exp_UnStab)
     
               ! Kz from similarity theory (Eq. 8.48 of Jacobson)
               Kz_tmp = z_col(k)*vonKarman*FricVel*PBL_profile_fac/PBL_coeff
-              !write(global_info,*)"1 ",kz_tmp
             else
     
                 ! In free atmosphere above the PBL, use Prandtl's mixing
@@ -533,14 +546,12 @@
                 !    There are several ways to parameterize the mixing
                 !    length (Randerson, p155, 1984; Monin and Yaglom, v1,
                 !    p409. Collins et al, NCAR TN-464, 2004, eq. 4.461)
-              !if (VERB.gt.2) write(global_info,*)"Calling MixLen_CAM3"
               Lc = MixLen_CAM3(real(z_col(k),kind=ip))
     
                 ! calculate eq 8
                 ! The Ri-term seems to zero out anything above the PBL
                 ! since Ri is too high
               Kz_tmp = Lc*Lc*abs(dv_dz_col(k))!*Fc(Ri_col_windp(k))
-              !write(global_info,*)"2 ",kz_tmp
             endif
     
             ! assign to array and convert from m2/s to km2/hr
@@ -737,7 +748,6 @@
       ! to evaluate everything on the computational grid at each time, but this
       ! is probably overkill.
 
-      !write(global_info,*)"Inside Set_VarDiffV_Meso"
       if(Load_MesoSteps)then
         if(first_time)then
           !  Populate values for the 'last' step
@@ -1337,7 +1347,6 @@
       real(kind=ip) :: CUnStab
       real(kind=ip) :: EUnStab
 
-      !write(global_info,*)z,h,L,CStab,CUnStab,EUnStab
       if(abs(h).lt.EPS_SMALL.or.abs(L).lt.EPS_SMALL)then
         Phi_WindShear_NonDim = EPS_SMALL
       elseif(z.le.0.0_ip)then

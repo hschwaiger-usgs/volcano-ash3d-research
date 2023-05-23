@@ -5,8 +5,8 @@
       use io_units
 
       use global_param,  only : &
-         useCalcFallVel,useDiffusion,useHorzAdvect,useVertAdvect,VERB,&
-         HR_2_S,useTemperature,DT_MIN,CFL,KM3_2_M3,EPS_TINY,EPS_SMALL,&
+         useCalcFallVel,useDiffusion,useHorzAdvect,useVertAdvect,&
+         HR_2_S,useTemperature,DT_MIN,KM3_2_M3,EPS_TINY,EPS_SMALL,&
          nmods,OPTMOD_names,StopConditions,CheckConditions, &
          useVarDiffH,useVarDiffV
 
@@ -22,15 +22,16 @@
          Calculated_Cloud_Load,Calculated_AshThickness,Calc_vprofile, &
            Allocate_Output_Vars, &
            Allocate_Output_UserVars, &
+           Allocate_NTime,   &
            Allocate_Profile, &
            Gen_Output_Vars,&
            FirstAsh
 
       use io_data,       only : &
-         Called_Gen_Output_Vars,isFinal_TS,LoadConcen,log_step, Ash3dHome,&
+         Called_Gen_Output_Vars,isFinal_TS,LoadConcen,log_step,&
          Output_at_logsteps,Output_at_WriteTimes,Output_every_TS,&
          NextWriteTime,iTimeNext,nvprofiles,nWriteTimes,&
-         WriteAirportFile_ASCII,WriteAirportFile_KML
+         Write_PT_Data,Write_PR_Data
 
       use time_data,     only : &
          time,dt,Simtime_in_hours,t0,t1,ntmax
@@ -47,7 +48,7 @@
            Allocate_Tephra,&
            Allocate_Tephra_Met,&
            Prune_GS
-	   
+   
       use Atmosphere,    only : &
            Allocate_Atmosphere_Met
 
@@ -110,56 +111,46 @@
       real(kind=ip)         :: MassConsErr
 
       INTERFACE
+#ifdef USENETCDF
+        !subroutine NC_RestartFile_LoadConcen
+        !end subroutine NC_RestartFile_LoadConcen
+#endif
+        subroutine Set_OS_Env
+        end subroutine Set_OS_Env
         subroutine Read_Control_File
-        end subroutine
+        end subroutine Read_Control_File
+        subroutine input_data_ResetParams
+        end subroutine input_data_ResetParams
         subroutine alloc_arrays
-        end subroutine
+        end subroutine alloc_arrays
         subroutine calc_mesh_params
-        end subroutine
+        end subroutine calc_mesh_params
         subroutine MesoInterpolater(TimeNow,Load_MesoSteps,Interval_Frac,first_time)
           integer,parameter  :: dp         = 8 ! Double precision
-          real(kind=dp),intent(in)  :: TimeNow
-          real(kind=dp),intent(out) :: Interval_Frac
-          logical      ,intent(out) :: Load_MesoSteps
-          logical      ,intent(in)  :: first_time
-        end subroutine
+          real(kind=dp),intent(in)    :: TimeNow
+          real(kind=dp),intent(out)   :: Interval_Frac
+          logical      ,intent(inout) :: Load_MesoSteps
+          logical      ,intent(in)    :: first_time
+        end subroutine MesoInterpolater
         subroutine output_results
-        end subroutine
+        end subroutine output_results
         subroutine Set_BC(bc_code)
           integer,intent(in) :: bc_code ! 1 for advection, 2 for diffusion
-        end subroutine
+        end subroutine Set_BC
         subroutine vprofilewriter(itime)
           integer, intent(in) :: itime
-        end subroutine
+        end subroutine vprofilewriter
         subroutine TimeStepTotals(itime)
           integer, intent(in) :: itime
-        end subroutine
+        end subroutine TimeStepTotals
         subroutine dealloc_arrays
-        end subroutine
+        end subroutine dealloc_arrays
       END INTERFACE
 
-      ! Set the default installation path
-      ! This is only needed if shared data files with fixed paths are read
-      ! in such as the global airport and volcano ESP files.
-      Ash3dHome = '/opt/USGS/Ash3d'
-      ! Here it is over-written by compile-time path, if available
-#include "installpath.h"
-      ! This can be over-written if an environment variable is set
-      call GET_ENVIRONMENT_VARIABLE(NAME="ASH3DHOME",VALUE=tmp_str,STATUS=iostatus)
-      if(iostatus.eq.0)then
-        Ash3dHome = tmp_str
-        write(global_info,*)&
-          "Install path reset by environment variable to: ",Ash3dHome
-      endif
-      call GET_ENVIRONMENT_VARIABLE(NAME="ASH3DCFL",VALUE=tmp_str,STATUS=iostatus)
-      if(iostatus.eq.0)then
-        read(tmp_str,*)CFL
-        write(global_info,*)&
-          "CFL condition reset by environment variable to: ",CFL
-      else
-        write(global_info,*)&
-          "CFL condition : ",CFL
-      endif
+!      ! Before we do anything, start a log file
+!      open(unit=global_log,file='Ash3d.lst',status='unknown')
+
+      call Set_OS_Env
 
       aloft_percent_remaining = 1.0_ip
       SourceCumulativeVol     = 0.0_ip
@@ -180,65 +171,87 @@
 !  compiled in this executable and for consistency among modules:
 !  e.g. SRC_RESUSP will require the VARDIFF and LC be set
 !
-      write(global_info,*)&
-        "Now looping through optional modules found in input file"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Now looping through optional modules found in input file"
+      endif;enddo
       do j=1,nmods
-        write(global_info,*)"Testing for ",OPTMOD_names(j),j
+        do io=1,2;if(VB(io).le.verbosity_essential)then
+          write(outlog(io),*)"Testing for ",OPTMOD_names(j),j
+        endif;enddo
         if(OPTMOD_names(j).eq.'RESETPARAMS')then
-          write(global_info,*)"  Reading input block for RESETPARAMS"
+          do io=1,2;if(VB(io).le.verbosity_essential)then
+            write(outlog(io),*)"  Reading input block for RESETPARAMS"
+          endif;enddo
           call input_data_ResetParams
         endif
 #ifdef TOPO
         if(OPTMOD_names(j).eq.'TOPO')then
-          write(global_info,*)"  Reading input block for TOPO"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"  Reading input block for TOPO"
+          endif;enddo
           call input_data_Topo
         endif
 #endif
 #ifdef LC
         if(OPTMOD_names(j).eq.'LC')then
-          write(global_info,*)"  Reading input block for LC"
+          do io=1,2;if(VB(io).le.verbosity_info)then    
+            write(outlog(io),*)"  Reading input block for LC"
+          endif;enddo
           call input_data_LC
         endif
 #endif
 #ifdef OSCAR
         if(OPTMOD_names(j).eq.'OSCAR')then
-          write(global_info,*)"  Reading input block for OSCAR"
+          do io=1,2;if(VB(io).le.verbosity_info)then    
+            write(outlog(io),*)"  Reading input block for OSCAR"
+          endif;enddo
           call input_data_OSCAR
         endif
 #endif
 #ifdef WETDEPO
         if(OPTMOD_names(j).eq.'WETDEPO')then
-          write(global_info,*)"  Reading input block for WETDEPO"
+          do io=1,2;if(VB(io).le.verbosity_info)then    
+            write(outlog(io),*)"  Reading input block for WETDEPO"
+          endif;enddo
           call input_data_WetDepo
         endif
 #endif
 #ifdef VARDIFF
         if(OPTMOD_names(j).eq.'VARDIFF')then
-          write(global_info,*)"  Reading input block for VARDIFF"
+          do io=1,2;if(VB(io).le.verbosity_info)then    
+            write(outlog(io),*)"  Reading input block for VARDIFF"
+          endif;enddo
           call input_data_VarDiff
         endif
 #endif
 #ifdef SRC_RESUSP
         if(OPTMOD_names(j).eq.'SRC_RESUSP')then
-          write(global_info,*)"  Reading input block for SRC_RESUSP"
+          do io=1,2;if(VB(io).le.verbosity_info)then    
+            write(outlog(io),*)"  Reading input block for SRC_RESUSP"
+          endif;enddo
           call input_data_Source_Resuspension
         endif
 #endif
 #ifdef SRC_GAS
         if(OPTMOD_names(j).eq.'SRC_GAS')then
-          write(global_info,*)"  Reading input block for SRC_GAS"
+          do io=1,2;if(VB(io).le.verbosity_info)then    
+            write(outlog(io),*)"  Reading input block for SRC_GAS"
+          endif;enddo
           call input_data_Source_Gas
         endif
 #endif
 #ifdef SRC_SAT
         if(OPTMOD_names(j).eq.'SRC_SAT')then
-          write(global_info,*)"  Reading input block for SRC_SAT"
+          do io=1,2;if(VB(io).le.verbosity_info)then    
+            write(outlog(io),*)"  Reading input block for SRC_SAT"
+          endif;enddo
           call input_data_Source_Satellite
         endif
 #endif
       enddo
-      write(global_info,*)&
-        "Finished reading all specialized input blocks"
+      do io=1,2;if(VB(io).le.verbosity_info)then    
+        write(outlog(io),*)"Finished reading all specialized input blocks"
+      endif;enddo
 !
 !------------------------------------------------------------------------------
 
@@ -255,20 +268,9 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   Initialize concen and any special source terms here
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      if(LoadConcen)then
-        ! We are initializing the concentration and time from an output file
-        ! Currently, Ash3d assumes the concentration file is compatible with
-        ! the computational grid and grainsize distribution
-#ifdef USENETCDF
-        call NC_RestartFile_LoadConcen
-#else
-        write(global_info,*)"ERROR: Loading concentration files requires previous netcdf"
-        write(global_info,*)"       output.  This Ash3d executable was not compiled with"
-        write(global_info,*)"       netcdf support.  Please recompile Ash3d with"
-        write(global_info,*)"       USENETCDF=T, or select another source."
-        stop 1
-#endif
-      else
+      if(.not.LoadConcen)then
+       ! Initialize arrays if we haven't already loaded the concentration from
+       ! a previous run
        concen_pd = 0.0_ip
        DepositGranularity = 0.0_ip
       endif
@@ -345,6 +347,7 @@
       Interval_Frac  = 0.0_ip
       first_time     = .true.
       call MesoInterpolater(time , Load_MesoSteps , Interval_Frac, first_time)
+
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
 !         Insert calls to special MesoInterpolaters subroutines here
@@ -375,8 +378,9 @@
 #endif
 #ifdef OSCAR
       if(useOceanCurrent)then
-        write(global_info,*)&
-         "Ocean current branch disabled until rgrd2 is replaced."
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Ocean current branch disabled until rgrd2 is replaced."
+        endif;enddo
         stop 1
         call Check_SurfaceVelocity
         call set_SurfaceVelocity(0.0_ip)
@@ -424,27 +428,32 @@
       call output_results
 
       ntmax = max(1,3*int(Simtime_in_hours/dt))
-      if (nvprofiles.gt.0)then
+      call Allocate_NTime(ntmax)
+      if (Write_PR_Data)then
         call Allocate_Profile(nzmax,ntmax,nvprofiles)
       endif
 
       ! write "Building time array of plume height & eruption rate"
-      write(global_info,7)
-      write(global_log ,7)
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),7)
+      endif;enddo
 
       call Allocate_Source_time
 
       !call MassFluxCalculator          !find current mass flux & plume height
 
       ! Write out starting volume, max time steps, and headers for the table that follows
-      write(global_info,1) tot_vol,ntmax
-      write(global_log ,1) tot_vol,ntmax
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),1) tot_vol,ntmax
+      endif;enddo
 
       ! ************************************************************************
       ! ****** begin time simulation *******************************************
       ! ************************************************************************
       itime = 0
-      write(global_info,*)"Starting time loop."
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Starting time loop."
+      endif;enddo
 
       do while (StopTimeLoop.eqv..false.)
         ! Note: stop conditions are evaluated at the end of the time loop
@@ -460,41 +469,53 @@
 
         itime = itime + 1
         if(itime.gt.ntmax)then
-          write(global_info,*)"WARNING: The number of time steps attempted exceeds 3x that anticipated."
-          write(global_info,*)"         Check that the winds are stable"
-          write(global_info,*)"        Simtime_in_hours = ",Simtime_in_hours
-          write(global_info,*)"                   ntmax = ",ntmax
-          write(global_info,*)"            current step = ",itime
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"WARNING: The number of time steps attempted exceeds 3x that anticipated."
+            write(outlog(io),*)"         Check that the winds are stable"
+            write(outlog(io),*)"        Simtime_in_hours = ",Simtime_in_hours
+            write(outlog(io),*)"                   ntmax = ",ntmax
+            write(outlog(io),*)"            current step = ",itime
+          endif;enddo
         endif
 
           ! find the wind field at the current time
-        if(VERB.gt.1)write(global_info,*)"Calling MesoInterpolater."
         first_time     = .false.
         call MesoInterpolater(time , Load_MesoSteps , Interval_Frac, first_time)
+
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
 !         Insert calls to special MesoInterpolaters subroutines here
 !
 #ifdef VARDIFF
-        if(VERB.gt.1)write(global_info,*)"Calling Set_VarDiffH_Meso."
+        do io=1,2;if(VB(io).le.verbosity_info)then    
+          write(outlog(io),*)"Calling Set_VarDiffH_Meso."
+        endif;enddo
         if(useVarDiffH)     call Set_VarDiffH_Meso(Load_MesoSteps,Interval_Frac)
-        if(VERB.gt.1)write(global_info,*)"Calling Set_VarDiffV_Meso."
+        do io=1,2;if(VB(io).le.verbosity_info)then      
+          write(outlog(io),*)"Calling Set_VarDiffV_Meso."
+        endif;enddo
         if(useVarDiffV)     call Set_VarDiffV_Meso(Load_MesoSteps,Interval_Frac)
 #endif
 #ifdef SRC_RESUSP
-        if(VERB.gt.1)write(global_info,*)"Calling Set_Resusp_Meso."
+        do io=1,2;if(VB(io).le.verbosity_info)then      
+          write(outlog(io),*)"Calling Set_Resusp_Meso."
+        endif;enddo
         if(useResuspension) call Set_Resusp_Meso(Load_MesoSteps,Interval_Frac)
 #endif
 #ifdef SRC_GAS
-        if(VERB.gt.1)write(global_info,*)"Calling Set_Gas_Meso."
+        do io=1,2;if(VB(io).le.verbosity_info)then      
+          write(outlog(io),*)"Calling Set_Gas_Meso."
+        endif;enddo
         if(USE_GAS)          call Set_Gas_Meso(Load_MesoSteps,Interval_Frac)
 #endif
 #ifdef WETDEPO
-        if(VERB.gt.1)write(global_info,*)"Calling Set_WetDepo_Meso."
+        do io=1,2;if(VB(io).le.verbosity_info)then      
+          write(outlog(io),*)"Calling Set_WetDepo_Meso."
+        endif;enddo
         if(USE_WETDEPO)     call Set_WetDepo_Meso(Load_MesoSteps,Interval_Frac)
 #endif
 !------------------------------------------------------------------------------
-        if(VERB.gt.1)write(global_info,*)"Calling MassFluxCalculator."
+
         call MassFluxCalculator         ! call subroutine that determines mass flux & plume height
 
 !------------------------------------------------------------------------------
@@ -503,14 +524,18 @@
 !
 #ifdef SRC_RESUSP
         if(useResuspension)then
-          if(VERB.gt.1)write(global_info,*)"Calling Set_Resusp_Flux."
+          do io=1,2;if(VB(io).le.verbosity_info)then      
+            write(outlog(io),*)"Calling Set_Resusp_Flux."
+          endif;enddo
           call Set_Resusp_Flux
           MassFluxRate_now = sum(SourceNodeFlux_Area)
         endif
 #endif
 #ifdef SRC_GAS
         if(USE_GAS)then
-          if(VERB.gt.1)write(global_info,*)"Calling Set_Gas_Flux."
+          do io=1,2;if(VB(io).le.verbosity_info)then      
+            write(outlog(io),*)"Calling Set_Gas_Flux."
+          endif;enddo
           call Set_Gas_Flux
           MassFluxRate_now = sum(SourceNodeFlux_Area)  ! kg/hr  
         endif
@@ -528,7 +553,6 @@
               (SourceType.eq.'umbrella') .or. &
               (SourceType.eq.'umbrella_air'))then
             ! Calculating the flux at the source nodes
-            if(VERB.gt.1)write(global_info,*)"Calling TephraSourceNodes."
             call TephraSourceNodes
 
             ! Now integrate the ash concentration with the SourceNodeFlux
@@ -540,6 +564,16 @@
                        concen_pd(ivent,jvent,1:ibase-1,1:n_gs_max,ts0) + & ! kg/km3
                        dt                                              * & ! hr
                        SourceNodeFlux(1:ibase-1,1:n_gs_max)                ! kg/km3 hr
+              do isize=1,n_gs_max
+                do k=1,ibase-1
+                  SourceCumulativeVol = SourceCumulativeVol + & ! final units is km3
+                    dt                              * & ! hr
+                    SourceNodeFlux(k,isize)         * & ! kg/km3 hr
+                    kappa_pd(ivent,jvent,k)         / & ! km3
+                    MagmaDensity                    / & ! kg/m3
+                    KM3_2_M3                            ! m3/km3
+                enddo
+              enddo
               do iz=ibase,itop
                 !Within the cloud: first, average the concentration that curently
                 !exists in the 9 cells surrounding the vent
@@ -549,12 +583,23 @@
                 enddo
               enddo
               !Then, add tephra to the 9 nodes surrounding the vent
+              ! TephraSourceNodes has a special line to reduce SourceNodeFlux by a factor 9
+              ! because it is applied 9 times here.  We need to be careful about mixing mass
+              ! and concentration since cell volume differ in lat, but this should be minor
               do ii=ivent-1,ivent+1
                 do jj=jvent-1,jvent+1
                   do iz=ibase,itop
                     concen_pd(ii,jj,iz,1:n_gs_max,ts0) =                &
                               concen_pd(ii,jj,iz,1:n_gs_max,ts0)        &
                                  + dt*SourceNodeFlux(iz,1:n_gs_max)
+                    do isize=1,n_gs_max
+                      SourceCumulativeVol = SourceCumulativeVol + & ! final units is km3
+                        dt                              * & ! hr
+                        SourceNodeFlux(iz,isize)         * & ! kg/km3 hr
+                        kappa_pd(ivent,jvent,iz)         / & ! km3
+                        MagmaDensity                    / & ! kg/m3
+                        KM3_2_M3                            ! m3/km3
+                    enddo
                   enddo
                 enddo
               enddo
@@ -565,11 +610,11 @@
               concen_pd(ivent,jvent,1:nzmax+1,1:n_gs_max,ts0)    &
                 + dt*SourceNodeFlux(1:nzmax+1,1:n_gs_max)
               ! this part is just for book-keeping and error checking
-              do ii=1,n_gs_max
+              do isize=1,n_gs_max
                 do k=1,nzmax+1
                   SourceCumulativeVol = SourceCumulativeVol + & ! final units is km3
                     dt                              * & ! hr
-                    SourceNodeFlux(k,ii)            * & ! kg/km3 hr
+                    SourceNodeFlux(k,isize)         * & ! kg/km3 hr
                     kappa_pd(ivent,jvent,k)         / & ! km3
                     MagmaDensity                    / & ! kg/m3
                     KM3_2_M3                            ! m3/km3
@@ -578,8 +623,10 @@
             endif
           !else
             ! This is not a standard source.
-          !  write(global_info,*)"WARNING: source type is non-standard"
-          !  stop 1
+            !do io=1,2;if(VB(io).le.verbosity_error)then
+            !  write(errlog(io),*)"WARNING: source type is non-standard"
+            !endif;enddo
+            !stop 1
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
 !         Insert calls to optional sources here
@@ -590,12 +637,16 @@
 !
           elseif (SourceType.eq.'resuspens') then
 #ifdef SRC_RESUSP
-            if(VERB.gt.1)write(global_info,*)"Calling Set_concen_Resusp."
+            do io=1,2;if(VB(io).le.verbosity_info)then      
+              write(outlog(io),*)"Calling Set_concen_Resusp."
+            endif;enddo
             call Set_concen_Resusp
 #endif
           elseif (SourceType.eq.'gas') then
 #ifdef SRC_GAS
-            if(VERB.gt.1)write(global_info,*)"Calling Set_concen_Gas."
+            do io=1,2;if(VB(io).le.verbosity_info)then      
+              write(outlog(io),*)"Calling Set_concen_Gas."
+            endif;enddo
             call Set_concen_Gas
 #endif
 !------------------------------------------------------------------------------
@@ -610,11 +661,12 @@
 !         Insert calls to optional boundary conditions here
 
 #ifdef OSCAR
-        if(VERB.gt.1)write(global_info,*)"Calling set_SurfaceVelocity."
+        do io=1,2;if(VB(io).le.verbosity_info)then      
+          write(outlog(io),*)"Calling set_SurfaceVelocity."
+        endif;enddo
         if(useOceanCurrent) call set_SurfaceVelocity(time)
 #endif
 !------------------------------------------------------------------------------
-        if(VERB.gt.1)write(global_info,*)"Calling Set_BC."
         call Set_BC(1)
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -625,24 +677,21 @@
 !         Insert calls to optional advection/diffusion routines here
 !
 #ifdef OSCAR
-        if(VERB.gt.1)write(global_info,*)"Calling advect_deposit."
+        do io=1,2;if(VB(io).le.verbosity_info)then      
+          write(outlog(io),*)"Calling advect_deposit."
+        endif;enddo
         if(useOceanCurrent) &
           call advect_deposit(concen_pd(1:nxmax,1:nymax,0,1:nsmax,ts0))
 #endif
 !------------------------------------------------------------------------------
 
-        if(VERB.gt.1)write(global_info,*)"Calling AdvectHorz."
         if(useHorzAdvect) call AdvectHorz(itime)
 
-        if(VERB.gt.1)write(global_info,*)"Calling advect_z."
         if(useVertAdvect) call advect_z
 
         if(useDiffusion)then
-          if(VERB.gt.1)write(global_info,*)"Calling Set_BC."
           call Set_BC(2)
-          if(VERB.gt.1)write(global_info,*)"Calling DiffuseVert."
           call DiffuseVert
-          if(VERB.gt.1)write(global_info,*)"Calling DiffuseHorz."
           call DiffuseHorz(itime)
         endif
 
@@ -652,14 +701,18 @@
 !
 #ifdef SRC_GAS
         if(USE_GAS)then
-          if(VERB.gt.1)write(global_info,*)"Calling Gas_Chem_Convert."
+          do io=1,2;if(VB(io).le.verbosity_info)then      
+            write(outlog(io),*)"Calling Gas_Chem_Convert."
+          endif;enddo
           call Gas_Chem_Convert
         endif
 #endif
 
 #ifdef WETDEPO
         if(USE_WETDEPO)then
-          if(VERB.gt.1)write(global_info,*)"Calling Wet_Depo_Rainout."
+          do io=1,2;if(VB(io).le.verbosity_info)then      
+            write(outlog(io),*)"Calling Wet_Depo_Rainout."
+          endif;enddo
           call Wet_Depo_Rainout
         endif
 #endif
@@ -671,7 +724,6 @@
         ! If there is any time-series output requiring evaluation at each
         ! time-step, then extract output variables from concen here
         if(Output_every_TS)then
-          if(VERB.gt.1)write(global_info,*)"Calling Gen_Output_Vars."
           call Gen_Output_Vars
 
 !------------------------------------------------------------------------------
@@ -679,20 +731,19 @@
 !         Insert calls output routines (every timestep) here
 !
 #ifdef WETDEPO
-          if(VERB.gt.1)write(global_info,*)"Calling ThicknessCalculator_WetDepo."
+          do io=1,2;if(VB(io).le.verbosity_info)then      
+            write(outlog(io),*)"Calling ThicknessCalculator_WetDepo."
+          endif;enddo
           if(USE_WETDEPO) call ThicknessCalculator_WetDepo
 #endif
 !------------------------------------------------------------------------------
 
             ! SEE WHETHER THE ASH HAS HIT ANY AIRPORTS
-          if(VERB.gt.1)write(global_info,*)"Calling FirstAsh."
           call FirstAsh
 
             ! Track ash on vertical profiles
-          if (nvprofiles.gt.0)then
-            if(VERB.gt.1)write(global_info,*)"Calling Calc_vprofile."
+          if (Write_PR_Data)then
             call Calc_vprofile(itime)
-            if(VERB.gt.1)write(global_info,*)"Calling vprofilewriter."
             call vprofilewriter(itime)     !write out vertical profiles
           endif
         endif
@@ -705,7 +756,6 @@
         if(Output_at_WriteTimes.and.(NextWriteTime-time.lt.DT_MIN))then
             ! Generate output variables if we haven't already
           if(.not.Called_Gen_Output_Vars)then
-            if(VERB.gt.1)write(global_info,*)"Calling Gen_Output_Vars."
             call Gen_Output_Vars
           endif
 !------------------------------------------------------------------------------
@@ -713,32 +763,43 @@
 !         Insert calls output routines (every output-step) here
 !
 #ifdef WETDEPO
-          if(VERB.gt.1)write(global_info,*)"Calling ThicknessCalculator_WetDepo."
+          do io=1,2;if(VB(io).le.verbosity_info)then    
+            write(outlog(io),*)"Calling ThicknessCalculator_WetDepo."
+          endif;enddo
           if(USE_WETDEPO) call ThicknessCalculator_WetDepo
 #endif
 #ifdef VARDIFF
-          if(VERB.gt.1)write(global_info,*)"Calling Prep_output_VarDiff."
+          do io=1,2;if(VB(io).le.verbosity_info)then    
+            write(outlog(io),*)"Calling Prep_output_VarDiff."
+          endif;enddo
           if(useVarDiffH.or.useVarDiffV) call Prep_output_VarDiff
 #endif
 #ifdef WETDEPO
-          if(VERB.gt.1)write(global_info,*)"Calling Prep_output_WetDepo."
+          do io=1,2;if(VB(io).le.verbosity_info)then    
+            write(outlog(io),*)"Calling Prep_output_WetDepo."
+          endif;enddo
           if(USE_WETDEPO) call Prep_output_WetDepo
 #endif
 #ifdef SRC_RESUSP
           if(SourceType.eq.'resuspens')then
-            if(VERB.gt.1)write(global_info,*)"Calling Prep_output_Source_Resuspension."
+            do io=1,2;if(VB(io).le.verbosity_info)then    
+              write(outlog(io),*)"Calling Prep_output_Source_Resuspension."
+            endif;enddo
             call Prep_output_Source_Resuspension
           endif
 #endif
 #ifdef SRC_GAS
           if(SourceType.eq.'gas')then
-            if(VERB.gt.1)write(global_info,*)"Calling Prep_output_Source_Gas."
+            do io=1,2;if(VB(io).le.verbosity_info)then    
+              write(outlog(io),*)"Calling Prep_output_Source_Gas."
+            endif;enddo
             call Prep_output_Source_Gas
           endif
 #endif
 !------------------------------------------------------------------------------
           call output_results
-          if ((WriteAirportFile_ASCII.or.WriteAirportFile_KML).and. &
+          !if ((WriteAirportFile_ASCII.or.WriteAirportFile_KML).and. &
+          if (Write_PT_Data.and. &
               (iTimeNext.lt.nWriteTimes)) then
             do j=iTimeNext,nWriteTimes
               Airport_Thickness_TS(1:nairports,j) = Airport_Thickness(1:nairports)
@@ -750,14 +811,15 @@
           !WRITE SUMMARY INFORMATION ON MASS CONSERVATION EVERY log_step TIME STEPS
           if(mod(itime,log_step).eq.0) then
             if(.not.Called_Gen_Output_Vars)then
-              if(VERB.gt.1)write(global_info,*)"Calling Gen_Output_Vars."
               call Gen_Output_Vars
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
 !         Insert calls output routines (every log-step) here
 !
 #ifdef WETDEPO
-              if(VERB.gt.1)write(global_info,*)"Calling ThicknessCalculator_WetDepo."
+              do io=1,2;if(VB(io).le.verbosity_info)then    
+                write(outlog(io),*)"Calling ThicknessCalculator_WetDepo."
+              endif;enddo
               if(USE_WETDEPO) call ThicknessCalculator_WetDepo
 #endif
 !------------------------------------------------------------------------------
@@ -769,19 +831,19 @@
           if(time.gt.e_EndTime_final)then
             ! Doesn't make sense to flag bins as flushed out while the eruption is on-going
             if(.not.Called_Gen_Output_Vars)then
-              if(VERB.gt.1)write(global_info,*)"Calling Gen_Output_Vars."
               call Gen_Output_Vars
 #ifdef WETDEPO
-              if(VERB.gt.1)write(global_info,*)"Calling ThicknessCalculator_WetDepo."
+              do io=1,2;if(VB(io).le.verbosity_info)then    
+                write(outlog(io),*)"Calling ThicknessCalculator_WetDepo."
+              endif;enddo
               if(USE_WETDEPO) call ThicknessCalculator_WetDepo
 #endif
             endif
-            if(VERB.gt.1)write(global_info,*)"Calling Prune_GS."
             call Prune_GS
           endif
         else
             ! If we are not monitoring deposits through logsteps, then set
-            ! tot-vol to 0 and rely on the simulation ending through input
+            ! tot_vol to 0 and rely on the simulation ending through input
             ! duration values
           tot_vol = 0.0_ip
         endif
@@ -798,7 +860,7 @@
         StopConditions(1) = (aloft_percent_remaining.lt.(1.0_ip-StopValue))
            ! Normal stop condition if simulation exceeds alloted time
         StopConditions(2) = (time.ge.Simtime_in_hours)
-           ! Normal stop conditionn when nothing is left to advect
+           ! Normal stop condition when nothing is left to advect
         StopConditions(3) = (n_gs_aloft.eq.0)
         if(SourceCumulativeVol.gt.EPS_TINY)then
           MassConsErr = abs(SourceCumulativeVol-tot_vol)/SourceCumulativeVol
@@ -829,7 +891,6 @@
         else
           StopTimeLoop = .false.
         endif
-
       enddo  !loop over itime
               !  ((dep_percent_accumulated.le.StopValue).and. &
               !    (time.lt.Simtime_in_hours)        .and. &
@@ -838,47 +899,55 @@
       ! Reset ntmax to the actual number of time steps
       ntmax = itime
 
-      write(global_info,*)"Time integration completed for the following reason:"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Time integration completed for the following reason:"
+      endif;enddo
       if((CheckConditions(1).eqv..true.).and.&
          (StopConditions(1).eqv..true.))then
         ! Normal stop condition set by user tracking the deposit
-        write(global_info,*)"Percent accumulated/exited exceeds ",StopValue
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"Percent accumulated/exited exceeds ",StopValue
+        endif;enddo
       endif
       if((CheckConditions(2).eqv..true.).and.&
          (StopConditions(2).eqv..true.))then
         ! Normal stop condition if simulation exceeds alloted time
-        write(global_info,*)"time.le.Simtime_in_hours"
-        write(global_info,*)"              Time = ",real(time,kind=4)
-        write(global_info,*)"  Simtime_in_hours = ",real(Simtime_in_hours,kind=4)
-        write(global_log,*)"time.le.Simtime_in_hours"
-        write(global_log,*)"              Time = ",real(time,kind=4)
-        write(global_log,*)"  Simtime_in_hours = ",real(Simtime_in_hours,kind=4)
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"time.ge.Simtime_in_hours"
+          write(outlog(io),*)"              Time = ",real(time,kind=4)
+          write(outlog(io),*)"  Simtime_in_hours = ",real(Simtime_in_hours,kind=4)
+        endif;enddo
       endif
       if((CheckConditions(3).eqv..true.).and.&
          (StopConditions(3).eqv..true.))then
         ! Normal stop condition when nothing is left to advect
-        write(global_info,*)"No ash species remain aloft."
-        write(global_log,*)"No ash species remain aloft."
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"No ash species remain aloft."
+        endif;enddo
       endif
       if((CheckConditions(4).eqv..true.).and.&
          (StopConditions(4).eqv..true.))then
         ! Error stop condition if the concen and outflow do not match the source
-        write(global_info,*)"Cummulative source volume does not match aloft + outflow"
-        write(global_info,*)" tot_vol = ",tot_vol
-        write(global_info,*)" SourceCumulativeVol = ",SourceCumulativeVol
-        write(global_info,*)" Abs. Error = ",&
-                            abs((tot_vol-SourceCumulativeVol)/SourceCumulativeVol)
-        write(global_info,*)" e_Volume = ",e_Volume
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Cummulative source volume does not match aloft + outflow"
+          write(errlog(io),*)" tot_vol = ",tot_vol
+          write(errlog(io),*)" SourceCumulativeVol = ",SourceCumulativeVol
+          write(errlog(io),*)" Abs. Error = ",&
+                               abs((tot_vol-SourceCumulativeVol)/SourceCumulativeVol)
+          write(errlog(io),*)" e_Volume = ",e_Volume
+        endif;enddo
         stop 1
       endif
       if((CheckConditions(5).eqv..true.).and.&
          (StopConditions(5).eqv..true.))then
         ! Error stop condition if any volume measure is negative
-        write(global_info,*)"One of the volume measures is negative."
-        write(global_info,*)"        dep_vol = ",dep_vol
-        write(global_info,*)"        aloft_vol = ",aloft_vol
-        write(global_info,*)"        outflow_vol = ",outflow_vol
-        write(global_info,*)"        SourceCumulativeVol = ",SourceCumulativeVol
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"One of the volume measures is negative."
+          write(errlog(io),*)"        dep_vol = ",dep_vol
+          write(errlog(io),*)"        aloft_vol = ",aloft_vol
+          write(errlog(io),*)"        outflow_vol = ",outflow_vol
+          write(errlog(io),*)"        SourceCumulativeVol = ",SourceCumulativeVol
+        endif;enddo
         stop 1
       endif
 
@@ -887,13 +956,16 @@
       ! ************************************************************************
 
       isFinal_TS = .true.
-      write(global_info,12)   !put footnotes below output table
-      write(global_log,12)   !put footnotes below output table
-      write(global_log ,12)
-      write(global_info,*)'time=',real(time,kind=4),',dt=',real(dt,kind=4)
-      write(global_log,*)'time=',real(time,kind=4),',dt=',real(dt,kind=4)
-      write(global_info,*)"Mass Conservation Error = ",MassConsErr
-      write(global_log,*)"Mass Conservation Error = ",MassConsErr
+      Called_Gen_Output_Vars  = .false.
+      Calculated_Cloud_Load   = .false.
+      Calculated_AshThickness = .false.
+
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),12)   !put footnotes below output table
+        write(outlog(io),*)'time=',real(time,kind=4),',dt=',real(dt,kind=4)
+        write(outlog(io),*)"Mass Conservation Error = ",MassConsErr
+      endif;enddo
+
         ! Make sure we have the latest output variables and go to write routines
       call Gen_Output_Vars
 !------------------------------------------------------------------------------
@@ -906,34 +978,24 @@
 !------------------------------------------------------------------------------
 
       call output_results
-
       !WRITE RESULTS TO LOG AND STANDARD OUTPUT
       !TotalTime_sp = etime(elapsed_sp)
-      !write(global_info,*) elapsed_sp(2), time*3600.0_ip
-      call cpu_time(t1) !time is a scalar real 
-      write(global_info,3) t1-t0, time*HR_2_S
-      write(global_log ,3) t1-t0, time*HR_2_S
-      write(global_info,4) time*HR_2_S/(t1-t0)
-      write(global_log ,4) time*HR_2_S/(t1-t0)
+      call cpu_time(t1) !time is a scalar real
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),3) t1-t0, time*HR_2_S
+        write(outlog(io),4) time*HR_2_S/(t1-t0)
+      endif;enddo
       call TimeStepTotals(itime)
-      write(global_info,5) dep_vol
-      write(global_log ,5) dep_vol
-      write(global_info,6) tot_vol
-      write(global_log ,6) tot_vol
-      write(global_info,9) maxval(DepositThickness), DepositAreaCovered
-      write(global_log ,9) maxval(DepositThickness), DepositAreaCovered
-
-      write(global_info,34)       !write out area of cloud at different thresholds
-      write(global_log ,34)
-      do k=1,5
-         write(global_info,35) LoadVal(k), CloudLoadArea(k)
-         write(global_log ,35) LoadVal(k), CloudLoadArea(k)
-      enddo
-        
-      write(global_info,33)    !write "normal completion"
-      write(global_log ,33)
-      
-      close(9)       !close log file 
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),5) dep_vol
+        write(outlog(io),6) tot_vol
+        write(outlog(io),9) maxval(DepositThickness), DepositAreaCovered
+        write(outlog(io),34)       !write out area of cloud at different thresholds
+        do k=1,5
+          write(outlog(io),35) LoadVal(k), CloudLoadArea(k)
+        enddo
+        write(outlog(io),33)    !write "normal completion"
+      endif;enddo
 
       ! Format statements
 1     format(/,5x,'Starting volume (km3 DRE)    = ',f11.4,       &
@@ -962,6 +1024,7 @@
 
       ! clean up memory
       call dealloc_arrays
+
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
 !         Insert calls deallocation routines here
@@ -992,5 +1055,7 @@
 #endif
 
 !------------------------------------------------------------------------------
+
+      close(global_log)       !close log file 
 
       end program Ash3d

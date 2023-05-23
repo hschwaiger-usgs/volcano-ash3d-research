@@ -184,7 +184,9 @@
 
       open(unit=10,file=infile,status='old',err=1900)
 
-      write(global_info,*)"    Searching for OPTMOD=WETDEPO"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"    Searching for OPTMOD=WETDEPO"
+      endif;enddo
       nmods = 0
       read(10,'(a80)',iostat=ios)linebuffer
       do while(ios.eq.0)
@@ -207,17 +209,23 @@
       USE_RAINOUT_LIQ = .false.
       USE_WASHOUT_ICE = .false.
       USE_RAINOUT_ICE = .false.
-      write(global_info,*)"    Continue reading input file for WetDepo block"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"    Continue reading input file for WetDepo block"
+      endif;enddo
        ! Check if we're going to use wet deposition and which type
           ! Below-cloud rain
         read(10,'(a80)',iostat=ios,err=2010)linebuffer
         read(linebuffer,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           USE_WASHOUT_LIQ = .true.
-          write(global_info,*)"    Using liquid washout (below-cloud rain)"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    Using liquid washout (below-cloud rain)"
+          endif;enddo
         elseif(answer(1:2).eq.'no') then
           USE_WASHOUT_LIQ = .false.
-          write(global_info,*)"    NOT using liquid washout (below-cloud rain)"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    NOT using liquid washout (below-cloud rain)"
+          endif;enddo
         else
           goto 2011
         endif
@@ -226,10 +234,14 @@
         read(linebuffer,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           USE_RAINOUT_LIQ = .true.
-          write(global_info,*)"    Using liquid rainout (in-cloud rain)"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    Using liquid rainout (in-cloud rain)"
+          endif;enddo
         elseif(answer(1:2).eq.'no') then
           USE_RAINOUT_LIQ = .false.
-          write(global_info,*)"    NOT using liquid rainout (in-cloud rain)"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    NOT using liquid rainout (in-cloud rain)"
+          endif;enddo
         else
           goto 2011
         endif
@@ -238,10 +250,14 @@
         read(linebuffer,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           USE_WASHOUT_ICE = .true.
-          write(global_info,*)"    Using frozen washout (below-cloud snow)"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    Using frozen washout (below-cloud snow)"
+          endif;enddo
         elseif(answer(1:2).eq.'no') then
           USE_WASHOUT_ICE = .false.
-          write(global_info,*)"    NOT using frozen washout (below-cloud snow)"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    NOT using frozen washout (below-cloud snow)"
+          endif;enddo
         else
           goto 2011
         endif
@@ -250,10 +266,14 @@
         read(linebuffer,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           USE_RAINOUT_ICE = .true.
-          write(global_info,*)"    Using frozen rainout (in-cloud snow)"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    Using frozen rainout (in-cloud snow)"
+          endif;enddo
         elseif(answer(1:2).eq.'no') then
           USE_RAINOUT_ICE = .false.
-          write(global_info,*)"    NOT using frozen rainout (in-cloud snow)"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    NOT using frozen rainout (in-cloud snow)"
+          endif;enddo
         else
           goto 2011
         endif
@@ -275,16 +295,18 @@
 
       return
 
-1900  write(global_info,*)  'error: cannot find input file: ',infile
-      write(global_info,*)  'Program stopped'
-      write(global_log,*)  'error: cannot find input file: ',infile
-      write(global_log,*)  'Program stopped'
+1900  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*)  'error: cannot find input file: ',infile
+        write(errlog(io),*)  'Program stopped'
+      endif;enddo
       stop 1
 
-2011  write(global_log,*) 'Error reading whether to use wet depositiony.'
-      write(global_log,*) 'Answer must be yes or no.'
-      write(global_log,*) 'You gave:',linebuffer
-      write(global_log,*) 'Program stopped'
+2011  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*) 'Error reading whether to use wet depositiony.'
+        write(errlog(io),*) 'Answer must be yes or no.'
+        write(errlog(io),*) 'You gave:',linebuffer
+        write(errlog(io),*) 'Program stopped'
+      endif;enddo
       stop 1
 
       end subroutine input_data_WetDepo
@@ -310,9 +332,11 @@
 
       integer :: ivar
 
-      write(global_info,*)"--------------------------------------------------"
-      write(global_info,*)"---------- ALLOCATE_WETDEPO_GLOBAL ---------------"
-      write(global_info,*)"--------------------------------------------------"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"--------------------------------------------------"
+        write(outlog(io),*)"---------- ALLOCATE_WETDEPO_GLOBAL ---------------"
+        write(outlog(io),*)"--------------------------------------------------"
+      endif;enddo
 
       if(MR_iwindformat.eq.24)then
         USE_3D_PRECIP = .true.
@@ -465,9 +489,11 @@
 
       implicit none
 
-      write(global_info,*)"--------------------------------------------------"
-      write(global_info,*)"---------- ALLOCATE_WETDEPO_MET ------------------"
-      write(global_info,*)"--------------------------------------------------"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"--------------------------------------------------"
+        write(outlog(io),*)"---------- ALLOCATE_WETDEPO_MET ------------------"
+        write(outlog(io),*)"--------------------------------------------------"
+      endif;enddo
 
       !nc_RH = np_fullmet
 
@@ -577,7 +603,6 @@
         if(i.eq.3) var_User2d_XY(1:nxmax,1:nymax,indx) = &
                        real(MetCloudTopHeight(1:nxmax,1:nymax),kind=op)
       enddo
-      !write(global_info,*)precipitation_rate_2d
 
       do i=1,nvar_User3d_XYGs_WetDepo
         indx = indx_User3d_XYGs_WetDepo+i
@@ -743,7 +768,6 @@
       integer :: ivar
       integer :: l
 
-      !write(global_info,*)"Inside Set_WetDepo_Meso"
       if(Load_MesoSteps)then
 
         if(CloudLoc.eq.3)then
@@ -819,7 +843,6 @@
           precipitation_rate_2d(:,:)   = MR_dum2d_comp(:,:)
         endif
         call Set_Scav_Coeff(MR_iMetStep_Now,1)
-        !write(global_info,*)MR_iMetStep_Now,prate_Wat_MetP_sp(5,5,5),scav_coeff_MetP(5,5,5,:)
         do l=1,nsmax
           if(.not.IsAloft(l)) cycle
           MR_dum3d_MetP(:,:,:) = real(scav_coeff_MetP(:,:,:,l),kind=sp)
@@ -1303,8 +1326,6 @@
               dt_sub = dt/real(n_substeps,kind=ip)
             endif
 
-            !write(global_info,*)MetCloudBotHeight(i,j),MetCloudTopHeight(i,j)
-
             do k=1,nzmax
               ! First scrub all the BELOW-CLOUD points
               if(USE_WASHOUT_LIQ.and.z_cc_pd(k).le.MetCloudBotHeight(i,j))then
@@ -1320,7 +1341,6 @@
                         !  and convert from kg/km3 to kg/m2
                       Deposit_Liq_Washout(i,j,n) = &
                         Deposit_Liq_Washout(i,j,n) + scrub*dz_vec_pd(k)*1.0e-6_ip
-                      !write(global_info,*)"Deposit_Liq_Washout ",Deposit_Liq_Washout(i,j,n)
                     enddo
                   endif
                 enddo
@@ -1339,8 +1359,6 @@
                         !  and convert from kg/km3 to kg/m2
                       Deposit_Liq_Rainout(i,j,n) = &
                         Deposit_Liq_Rainout(i,j,n) + scrub*dz_vec_pd(k)*1.0e-6_ip
-                      write(global_info,*)"Deposit_Liq_Rainout ",Deposit_Liq_Rainout(i,j,n)
-
                     enddo
                   endif
                 enddo
@@ -1454,15 +1472,12 @@
 
       tau = vt_ash/GRAV               ! time scale for terminal velocity
 
-      !write(global_info,*)'Cc,D,tau',Cc,D,tau
       Re = Rain_diam*Rain_Vel*rho_air/(2.0_ip*eta)   ! Reynolds (Note, this is half the Re from vset)
       Sc = eta/rho_air/D          ! Schmidt
       St = 2.0_ip*tau*(Rain_Vel-vt_ash)/Rain_diam      ! Stokes number
-      !write(global_info,*)'Re,Sc,St',Re,Sc,St 
       SpecialK = diam/Rain_diam           ! ratio of diameters
       omega = Rain_Mu/eta;          ! ratio of viscosities
       Sstar = (1.2_ip+(1.0_ip/12.0_ip)*log(1.0_ip+Re))/(1.0_ip+log(1.0_ip+Re))
-      !write(global_info,*)'SpecialK,omega,Sstar',SpecialK,omega,Sstar
         ! Brownian diffusion
       term1 = (4.0_ip/(Re*Sc))*(1.0_ip+0.4_ip*sqrt(Re) * &
                (Sc)**(1.0_ip/3.0_ip) + 0.16_ip * sqrt(Re*Sc))
@@ -1477,7 +1492,6 @@
         !        sqrt(Rain_dens/rho_air))
         term3 = (term3**1.5_ip) * sqrt(Rain_dens/rho_ash)
       endif
-      !write(global_info,*)term1,term2,term3,St-Sstar
       CEffic = term1 + term2 + term3
       ! Make sure the efficiency doesn't exceed unity (it could with
       ! electrostatic attraction)

@@ -234,29 +234,28 @@
       do while(testkey.eq.'#'.or.testkey.eq.'*')
          ! Line is a comment, read next line
         read(10,'(a80)')linebuffer
-        !write(global_info,*)linebuffer
         read(linebuffer,*)testkey
       enddo
       ! Read through block 1
       do while(testkey.ne.'#'.and.testkey.ne.'*')
          ! Line is a comment, read next line
         read(10,'(a80)')linebuffer
-        !write(global_info,*)linebuffer
         read(linebuffer,*)testkey
       enddo
       ! Read next block header
-      !write(global_info,*)linebuffer
       read(10,'(a80)')llinebuffer
       read(llinebuffer,*)testkey
       do while(testkey.eq.'#'.or.testkey.eq.'*')
          ! Line is a comment, read next line
         read(10,'(a80)')llinebuffer
-        !write(global_info,*)llinebuffer
         read(llinebuffer,*)testkey
       enddo
 
-      write(global_info,*)"Start reading gas source."
-      write(global_info,*)neruptions," eruptions"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Start reading gas source."
+        write(outlog(io),*)neruptions," eruptions"
+      endif;enddo
+
       !       EruptGasSrcStruc => 1 = distributed surface source (like a region)
       !                           2 = point on surface (vent)
       !                           3 = line on surface (fissure)
@@ -291,40 +290,56 @@
                                 EruptGasVentLon(i),EruptGasVentLat(i)
 
           if(EruptGasVentLon(i).lt.-360.0_ip)then
-            write(global_info,*)"ERROR: Vent longitude is less than -360.0"
+            do io=1,2;if(VB(io).le.verbosity_error)then
+              write(errlog(io),*)"ERROR: Vent longitude is less than -360.0"
+            endif;enddo
             stop 1
           elseif(EruptGasVentLon(i).gt.360.0_ip)then
-            write(global_info,*)"ERROR: Vent longitude is greater than 360.0"
+            do io=1,2;if(VB(io).le.verbosity_error)then
+              write(errlog(io),*)"ERROR: Vent longitude is greater than 360.0"
+            endif;enddo
             stop 1
           elseif(EruptGasVentLon(i).lt.0.0_ip)then
             EruptGasVentLon(i) = EruptGasVentLon(i) + 360.0_ip
           endif
           if(EruptGasVentLat(i).lt.-90.0_ip)then
-            write(global_info,*)"ERROR: Vent latitude is less than -90.0"
+            do io=1,2;if(VB(io).le.verbosity_error)then
+              write(errlog(io),*)"ERROR: Vent latitude is less than -90.0"
+            endif;enddo
             stop 1
           elseif(EruptGasVentLat(i).gt.90.0_ip)then
-            write(global_info,*)"ERROR: Vent latitude is greater than 90.0"
+            do io=1,2;if(VB(io).le.verbosity_error)then
+              write(errlog(io),*)"ERROR: Vent latitude is greater than 90.0"
+            endif;enddo
             stop 1
           endif
           ! Need to do some checking here on input coordinates, mapping to
           ! compuataional grid, etc.
           EruptGasVentLon_i(i) = int((EruptGasVentLon(i)-lonLL)/de) + 1
           EruptGasVentLat_j(i) = int((EruptGasVentLat(i)-latLL)/dn) + 1
-          write(global_info,*)EruptGasVentLon(i),lonLL,de,EruptGasVentLon_i(i)
-          write(global_info,*)EruptGasVentLat(i),latLL,dn,EruptGasVentLat_j(i)
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)EruptGasVentLon(i),lonLL,de,EruptGasVentLon_i(i)
+            write(outlog(io),*)EruptGasVentLat(i),latLL,dn,EruptGasVentLat_j(i)
+          endif;enddo
           !stop 1
 
         elseif(EruptGasSrcStruc(i).eq.3)then
           ! Read the start lon/lat and end lon/lat of fissure
-          write(global_info,*)"Gas Fissure source not yet implemented"
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)"Gas Fissure source not yet implemented"
+          endif;enddo
           stop 1
         elseif(EruptGasSrcStruc(i).eq.4)then
           ! Read the lon/lat and height of line
-          write(global_info,*)"Gas Line source not yet implemented"
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)"Gas Line source not yet implemented"
+          endif;enddo
           stop 1
         elseif(EruptGasSrcStruc(i).eq.5)then
           ! Read the profile of Mass fractions
-          write(global_info,*)"Gas Profile source not yet implemented"
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)"Gas Profile source not yet implemented"
+          endif;enddo
           stop 1
         endif
           ! Read the next line 
@@ -337,7 +352,9 @@
 
       ! Now read to the end of the input file and read the Optional Modudle
       ! block
-      write(global_info,*)"    Searching for OPTMOD=SRC_GAS"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"    Searching for OPTMOD=SRC_GAS"
+      endif;enddo
       ! Example block
 !      OPTMOD=SRC_GAS
 !      2                                       # ngas_max
@@ -355,7 +372,6 @@
         !read(linebuffer,*)testkey
         substr_pos = index(linebuffer,'OPTMOD')
         if(substr_pos.eq.1)then
-          !write(global_info,*)"Found OPTMOD again"
           ! found an optional module
           !  Parse for the keyword
           read(linebuffer,1104)mod_name
@@ -363,15 +379,23 @@
             ! First line of SRC_GAS block is just the number of species to track
             read(10,'(a80)',iostat=ios)linebuffer
             read(linebuffer,*)ngas_max
-            write(global_info,*)"ngas_max = ",ngas_max
+            do io=1,2;if(VB(io).le.verbosity_info)then
+              write(outlog(io),*)"ngas_max = ",ngas_max
+            endif;enddo
             if(ngas_max.lt.1)then
-              write(global_info,*)"No gas species defined."
+              do io=1,2;if(VB(io).le.verbosity_info)then
+                write(outlog(io),*)"No gas species defined."
+              endif;enddo
               ngas_max = 0
             elseif(ngas_max.gt.23)then
-              write(global_info,*)"To many gas species."
+              do io=1,2;if(VB(io).le.verbosity_error)then
+                write(errlog(io),*)"To many gas species."
+              endif;enddo
               stop 1
             else
-              write(global_info,*)"Reading list of gas species IDs."
+              do io=1,2;if(VB(io).le.verbosity_info)then
+                write(outlog(io),*)"Reading list of gas species IDs."
+              endif;enddo
               iconcen_gas_start = n_gs_max
             endif
             allocate(GS_GasSpeciesID(ngas_max))
@@ -467,36 +491,38 @@
                 Have_COS = .true.
                 Gas_COS_index = iconcen_gas_start+i    ! 52 = COS       carbonyl sulfide
               else
-                write(global_info,*)"ERROR: unknown gas code."
-                write(global_info,*)linebuffer
-                write(global_info,*)GS_GasSpeciesID
+                do io=1,2;if(VB(io).le.verbosity_error)then
+                  write(errlog(io),*)"ERROR: unknown gas code."
+                  write(errlog(io),*)linebuffer
+                  write(errlog(io),*)GS_GasSpeciesID
+                endif;enddo
                 stop 1
               endif
             enddo
 
-            if(Gas_H2O_index.gt.0)  write(global_info,*)"Gas_H2O_index =",   Gas_H2O_index    ! water vapor 
-            if(Gas_CO2_index.gt.0)  write(global_info,*)"Gas_CO2_index =",   Gas_CO2_index    ! carbon dioxide
-            if(Gas_SO2_index.gt.0)  write(global_info,*)"Gas_SO2_index =",   Gas_SO2_index    ! sulfur dioxide
-            if(Gas_H2S_index.gt.0)  write(global_info,*)"Gas_H2S_index =",   Gas_H2S_index    ! hydrogen sulfide
-            if(Gas_HCl_index.gt.0)  write(global_info,*)"Gas_HCl_index =",   Gas_HCl_index    ! hydrogen cloride
-            if(Gas_HF_index.gt.0)   write(global_info,*)"Gas_HF_index  =",   Gas_HF_index     ! hydrogen fluride
-            if(Gas_NH3_index.gt.0)  write(global_info,*)"Gas_NH3_index =",   Gas_NH3_index    ! ammonia
-            if(Gas_He_index.gt.0)   write(global_info,*)"Gas_He_index  =",   Gas_He_index     ! helium
-            if(Gas_Ar_index.gt.0)   write(global_info,*)"Gas_Ar_index  =",   Gas_Ar_index     ! argon
-            if(Gas_H2_index.gt.0)   write(global_info,*)"Gas_H2_index  =",   Gas_H2_index     ! hydrogen
-            if(Gas_N2_index.gt.0)   write(global_info,*)"Gas_N2_index  =",   Gas_N2_index     ! nitrogen
-            if(Gas_CH4_index.gt.0)  write(global_info,*)"Gas_CH4_index =",   Gas_CH4_index    ! methane
-            if(Gas_CO_index.gt.0)   write(global_info,*)"Gas_CO_index  =",   Gas_CO_index     ! carbon monoxide
-            if(Gas_Rn_index.gt.0)   write(global_info,*)"Gas_Rn_index  =",   Gas_Rn_index     ! radon
-            if(Gas_HBr_index.gt.0)  write(global_info,*)"Gas_HBr_index =",   Gas_HBr_index    ! hydrogen bromide
-            if(Gas_BrO_index.gt.0)  write(global_info,*)"Gas_BrO_index =",   Gas_BrO_index    ! Bromine oxide
-            if(Gas_As_index.gt.0)   write(global_info,*)"Gas_As_index  =",   Gas_As_index     ! arsenic
-            if(Gas_Hg_index.gt.0)   write(global_info,*)"Gas_Hg_index  =",   Gas_Hg_index     ! mercury
-            if(Gas_Pb_index.gt.0)   write(global_info,*)"Gas_Pb_index  =",   Gas_Pb_index     ! lead
-            if(Gas_Al_index.gt.0)   write(global_info,*)"Gas_Al_index  =",   Gas_Al_index     ! aluminium
-            if(Gas_SO4_index.gt.0)  write(global_info,*)"Gas_SO4_index =",   Gas_SO4_index    ! particulate sulfate
-            if(Gas_H2SO4_index.gt.0)write(global_info,*)"Gas_H2SO4_index =", Gas_H2SO4_index  ! sulfuric acid
-            if(Gas_COS_index.gt.0)  write(global_info,*)"Gas_COS_index =",   Gas_COS_index    ! carbonyl sulfide
+!            if(Gas_H2O_index.gt.0)  write(outlog(io),*)"Gas_H2O_index =",   Gas_H2O_index    ! water vapor 
+!            if(Gas_CO2_index.gt.0)  write(outlog(io),*)"Gas_CO2_index =",   Gas_CO2_index    ! carbon dioxide
+!            if(Gas_SO2_index.gt.0)  write(outlog(io),*)"Gas_SO2_index =",   Gas_SO2_index    ! sulfur dioxide
+!            if(Gas_H2S_index.gt.0)  write(outlog(io),*)"Gas_H2S_index =",   Gas_H2S_index    ! hydrogen sulfide
+!            if(Gas_HCl_index.gt.0)  write(outlog(io),*)"Gas_HCl_index =",   Gas_HCl_index    ! hydrogen cloride
+!            if(Gas_HF_index.gt.0)   write(outlog(io),*)"Gas_HF_index  =",   Gas_HF_index     ! hydrogen fluride
+!            if(Gas_NH3_index.gt.0)  write(outlog(io),*)"Gas_NH3_index =",   Gas_NH3_index    ! ammonia
+!            if(Gas_He_index.gt.0)   write(outlog(io),*)"Gas_He_index  =",   Gas_He_index     ! helium
+!            if(Gas_Ar_index.gt.0)   write(outlog(io),*)"Gas_Ar_index  =",   Gas_Ar_index     ! argon
+!            if(Gas_H2_index.gt.0)   write(outlog(io),*)"Gas_H2_index  =",   Gas_H2_index     ! hydrogen
+!            if(Gas_N2_index.gt.0)   write(outlog(io),*)"Gas_N2_index  =",   Gas_N2_index     ! nitrogen
+!            if(Gas_CH4_index.gt.0)  write(outlog(io),*)"Gas_CH4_index =",   Gas_CH4_index    ! methane
+!            if(Gas_CO_index.gt.0)   write(outlog(io),*)"Gas_CO_index  =",   Gas_CO_index     ! carbon monoxide
+!            if(Gas_Rn_index.gt.0)   write(outlog(io),*)"Gas_Rn_index  =",   Gas_Rn_index     ! radon
+!            if(Gas_HBr_index.gt.0)  write(outlog(io),*)"Gas_HBr_index =",   Gas_HBr_index    ! hydrogen bromide
+!            if(Gas_BrO_index.gt.0)  write(outlog(io),*)"Gas_BrO_index =",   Gas_BrO_index    ! Bromine oxide
+!            if(Gas_As_index.gt.0)   write(outlog(io),*)"Gas_As_index  =",   Gas_As_index     ! arsenic
+!            if(Gas_Hg_index.gt.0)   write(outlog(io),*)"Gas_Hg_index  =",   Gas_Hg_index     ! mercury
+!            if(Gas_Pb_index.gt.0)   write(outlog(io),*)"Gas_Pb_index  =",   Gas_Pb_index     ! lead
+!            if(Gas_Al_index.gt.0)   write(outlog(io),*)"Gas_Al_index  =",   Gas_Al_index     ! aluminium
+!            if(Gas_SO4_index.gt.0)  write(outlog(io),*)"Gas_SO4_index =",   Gas_SO4_index    ! particulate sulfate
+!            if(Gas_H2SO4_index.gt.0)write(outlog(io),*)"Gas_H2SO4_index =", Gas_H2SO4_index  ! sulfuric acid
+!            if(Gas_COS_index.gt.0)  write(outlog(io),*)"Gas_COS_index =",   Gas_COS_index    ! carbonyl sulfide
 
 
             ! Now read the number of reactions to calculate
@@ -504,7 +530,9 @@
             read(linebuffer,*) nreactions
             allocate(Reaction_ID(nreactions))
             if(nreactions.lt.1)then
-              write(global_info,*)"No gas reactions identified."
+              do io=1,2;if(VB(io).le.verbosity_info)then
+                write(outlog(io),*)"No gas reactions identified."
+              endif;enddo
             else
               ! Loop through the reactions, read the reaction ID and parameter list
               do ireac=1,nreactions
@@ -515,18 +543,26 @@
                   ! The only parameter needed is the decay rate in seconds
                   read(linebuffer,*) Reaction_ID(ireac),Gas_SO2_SO4_decay_rate
                   Gas_SO2_SO4_conversion_HLife = 0.693147180559945_ip/Gas_SO2_SO4_decay_rate/HR_2_S
-                  write(global_info,*)"SO2 to SO4 conversion reaction detected using a constant rate"
-                  write(global_info,*)"      rate (s^-1) = ",real(Gas_SO2_SO4_decay_rate,kind=4)
-                  write(global_info,*)" half-life (hrs)  = ",real(Gas_SO2_SO4_conversion_HLife,kind=4)
+                  do io=1,2;if(VB(io).le.verbosity_info)then
+                    write(outlog(io),*)"SO2 to SO4 conversion reaction detected using a constant rate"
+                    write(outlog(io),*)"      rate (s^-1) = ",real(Gas_SO2_SO4_decay_rate,kind=4)
+                    write(outlog(io),*)" half-life (hrs)  = ",real(Gas_SO2_SO4_conversion_HLife,kind=4)
+                  endif;enddo
                   ! do some minimal error-checking and make sure we are tracking the needed reactants and products
                   if(Have_SO2.and.Have_SO4)then
-                    write(global_info,*)"  All reactants and products are available for this reaction."
+                    do io=1,2;if(VB(io).le.verbosity_info)then    
+                      write(outlog(io),*)"  All reactants and products are available for this reaction."
+                    endif;enddo
                   else
                     if(.not.Have_SO2)then
-                      write(global_error,*)"ERROR: Reaction 1 (SO2->SO4) requires SO2 as a tracked species."
+                      do io=1,2;if(VB(io).le.verbosity_error)then
+                        write(errlog(io),*)"ERROR: Reaction 1 (SO2->SO4) requires SO2 as a tracked species."
+                      endif;enddo
                     endif
                     if(.not.Have_SO4)then
-                      write(global_error,*)"ERROR: Reaction 1 (SO2->SO4) requires SO4 as a tracked species."
+                      do io=1,2;if(VB(io).le.verbosity_error)then
+                        write(errlog(io),*)"ERROR: Reaction 1 (SO2->SO4) requires SO4 as a tracked species."
+                      endif;enddo
                     endif
                     stop 1
                   endif
@@ -534,7 +570,9 @@
                   ! Some other SO2->SO4 conversion, maybe with H2O, sunlight, etc.
 
                 else
-                  write(global_info,*)"ERROR: Reaction ID not recognized",Reaction_ID(ireac)
+                  do io=1,2;if(VB(io).le.verbosity_error)then    
+                    write(errlog(io),*)"ERROR: Reaction ID not recognized",Reaction_ID(ireac)
+                  endif;enddo
                   stop 1
                 endif
               enddo
@@ -561,13 +599,15 @@
 
       return
 
-1900  write(global_info,*)  'error: cannot find input file: ',infile
-      write(global_info,*)  'Program stopped'
-      write(global_log,*)  'error: cannot find input file: ',infile
-      write(global_log,*)  'Program stopped'
+1900  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*)  'error: cannot find input file: ',infile
+        write(errlog(io),*)  'Program stopped'
+      endif;enddo
       stop 1
-1910  write(global_info,*)  'error reading start time, duration, height or',&
-                  ' volume of an eruptive pulse.  Program stopped'
+1910  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*)  'error reading start time, duration, height or',&
+                    ' volume of an eruptive pulse.  Program stopped'
+      endif;enddo
       stop 1
 
       end subroutine input_data_Source_Gas
@@ -592,9 +632,11 @@
 
       integer :: gasID,ig,i,indx
 
-      write(global_info,*)"--------------------------------------------------"
-      write(global_info,*)"---------- ALLOCATE_GAS -----------------------"
-      write(global_info,*)"--------------------------------------------------"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"--------------------------------------------------"
+        write(outlog(io),*)"---------- ALLOCATE_GAS -----------------------"
+        write(outlog(io),*)"--------------------------------------------------"
+      endif;enddo
 
       ! Set the start indecies
       indx_User2d_XY_SrcGas        = nvar_User2d_XY
@@ -809,7 +851,9 @@
 
       integer :: i,j
 
-      write(global_info,*)"Opening ",SrcGasSurf_PerimInfile
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Opening ",SrcGasSurf_PerimInfile
+      endif;enddo
       open(unit=20,file=SrcGasSurf_PerimInfile)
       read(20,*)npoints
       allocate(Perm_lon(npoints))
@@ -881,7 +925,10 @@
         enddo
       enddo
 
-      write(global_info,*)ivent,jvent, SrcGasSurf_Mask(ivent,jvent) , SrcGasSurf_MaskCount
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)ivent,jvent, SrcGasSurf_Mask(ivent,jvent) , SrcGasSurf_MaskCount
+      endif;enddo
+
       close(20)
 
       end subroutine Read_Perimeter_Gas
@@ -1022,8 +1069,10 @@
         case(52)          !                         52 = COS        carbonyl sulfide
           idx = Gas_COS_index
         case default
-          write(global_info,*)  'ERROR: Gas species ID not recognized'
-          write(global_info,*)  'Program stopped'
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)  'ERROR: Gas species ID not recognized'
+            write(errlog(io),*)  'Program stopped'
+          endif;enddo
           stop 1
         end select
 

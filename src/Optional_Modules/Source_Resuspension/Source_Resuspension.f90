@@ -114,28 +114,26 @@
       do while(testkey.eq.'#'.or.testkey.eq.'*')
          ! Line is a comment, read next line
         read(10,'(a80)')linebuffer
-        !write(global_info,*)linebuffer
         read(linebuffer,*)testkey
       enddo
       ! Read through block 1
       do while(testkey.ne.'#'.and.testkey.ne.'*')
          ! Line is a comment, read next line
         read(10,'(a80)')linebuffer
-        !write(global_info,*)linebuffer
         read(linebuffer,*)testkey
       enddo
       ! Read next block header
-      !write(global_info,*)linebuffer
       read(10,'(a80)')llinebuffer
       read(llinebuffer,*)testkey
       do while(testkey.eq.'#'.or.testkey.eq.'*')
          ! Line is a comment, read next line
         read(10,'(a80)')llinebuffer
-        !write(global_info,*)llinebuffer
         read(llinebuffer,*)testkey
       enddo
 
-      write(global_info,*)"Start reading resuspension source."
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Start reading resuspension source."
+      endif;enddo
 
       !read start time, duration, plume height
       !                Duration
@@ -154,39 +152,54 @@
       DepPerimInfile = adjustl(trim(lllinebuffer))
 
       if( e_Duration(1).gt.Simtime_in_hours)then
-        write(global_info,*)&
-          "Source duration is longer than the model simulation time."
-        write(global_info,*)&
-          "Resetting to simulation time."
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"Source duration is longer than the model simulation time."
+          write(outlog(io),*)"Resetting to simulation time."
+        endif;enddo
         e_Duration(1) = Simtime_in_hours
       endif
-      write(global_info,*)iyear,imonth,iday,real(hour,kind=sp)
-      write(global_info,*)"eDur   = ",real(e_Duration(1),kind=sp)
-      write(global_info,*)"Height = ",real(e_PlumeHeight(1),kind=sp)
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)iyear,imonth,iday,real(hour,kind=sp)
+        write(outlog(io),*)"eDur   = ",real(e_Duration(1),kind=sp)
+        write(outlog(io),*)"Height = ",real(e_PlumeHeight(1),kind=sp)
+      endif;enddo
       if(FvID.eq.1)then
-        write(global_info,*)"FvID = 1: Westphal scheme"
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"FvID = 1: Westphal scheme"
+        endif;enddo
       elseif(FvID.eq.2)then
-        write(global_info,*)"FvID = 2: Leadbetter scheme"
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"FvID = 2: Leadbetter scheme"
+        endif;enddo
       elseif(FvID.eq.3)then
-        write(global_info,*)"FvID = 3: Morticorena scheme"
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"FvID = 3: Morticorena scheme"
+        endif;enddo
       else
-        write(global_info,*)"Resuspension scheme not recognized."
-        write(global_info,*)"  Please use 1: Westphal"
-        write(global_info,*)"             2: Leadbetter"
-        write(global_info,*)"             3: Morticorena"
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Resuspension scheme not recognized."
+          write(errlog(io),*)"  Please use 1: Westphal"
+          write(errlog(io),*)"             2: Leadbetter"
+          write(errlog(io),*)"             3: Morticorena"
+        endif;enddo
         stop 1
       endif
       if(u_star_thresh.gt.0.0_ip)then
-        write(global_info,*)"u_star_thresh = ",&
-                            real(u_star_thresh,kind=sp)
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"u_star_thresh = ",&
+                              real(u_star_thresh,kind=sp)
+        endif;enddo
       else
-        write(global_info,*)&
-          "u_star_thresh will be calculated from local conditions."
-        write(global_info,*)"Not yet implemented."
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"u_star_thresh will be calculated from local conditions."
+          write(outlog(io),*)"Not yet implemented."
+        endif;enddo
       endif
-      write(global_info,*)"FV_scaling coefficient = ",&
-                          real(Fv_coeff,kind=sp)
-      write(global_info,*)DepPerimInfile
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"FV_scaling coefficient = ",&
+                            real(Fv_coeff,kind=sp)
+        write(outlog(io),*)DepPerimInfile
+      endif;enddo
 
       ! Initialize some eruption values
       e_Duration(:)  = 0.0_ip
@@ -194,7 +207,9 @@
 
       ! Now read to the end of the input file and read the Optional Modudle
       ! block
-      write(global_info,*)"    Searching for OPTMOD=SRC_RESUSP"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"    Searching for OPTMOD=SRC_RESUSP"
+      endif;enddo
       nmods = 0
       read(10,'(a80)',iostat=ios)linebuffer
       do while(ios.eq.0)
@@ -203,12 +218,13 @@
         !read(linebuffer,*)testkey
         substr_pos = index(linebuffer,'OPTMOD')
         if(substr_pos.eq.1)then
-          !write(global_info,*)"Found OPTMOD again"
           ! found an optional module
           !  Parse for the keyword
           read(linebuffer,1104)mod_name
           if(adjustl(trim(mod_name)).eq.'SRC_RESUSP')then
-            write(global_info,*)"Found SRC_RESUSP block again"
+            do io=1,2;if(VB(io).le.verbosity_info)then
+              write(outlog(io),*)"Found SRC_RESUSP block again"
+            endif;enddo
             exit
           endif
           !OPTMOD_names(nmods) = adjustl(trim(mod_name))
@@ -224,18 +240,23 @@
 
 !2010  continue
       close(10)
-      write(global_info,*)"Finished input_data_Source_Resuspension"
+
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Finished input_data_Source_Resuspension"
+      endif;enddo
 
       return
 
-1900  write(global_info,*)  'error: cannot find input file: ',infile
-      write(global_info,*)  'Program stopped'
-      write(global_log,*)  'error: cannot find input file: ',infile
-      write(global_log,*)  'Program stopped'
+1900  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*)  'error: cannot find input file: ',infile
+        write(errlog(io),*)  'Program stopped'
+      endif;enddo
       stop 1
 
-1910  write(global_info,*)  'error reading start time, duration, height or',&
-                  ' volume of an eruptive pulse.  Program stopped'
+1910  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*)  'error reading start time, duration, height or',&
+                    ' volume of an eruptive pulse.  Program stopped'
+      endif;enddo
       stop 1
 
       end subroutine input_data_Source_Resuspension
@@ -256,9 +277,11 @@
 
       implicit none
 
-      write(global_info,*)"--------------------------------------------------"
-      write(global_info,*)"---------- ALLOCATE_RESUSP -----------------------"
-      write(global_info,*)"--------------------------------------------------"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"--------------------------------------------------"
+        write(outlog(io),*)"---------- ALLOCATE_RESUSP -----------------------"
+        write(outlog(io),*)"--------------------------------------------------"
+      endif;enddo
 
       ! Set the start indicies
       indx_User2d_static_XY_SrcResusp = nvar_User2d_static_XY
@@ -399,18 +422,24 @@
 
       ! Test for existance of the deposit file
       inquire( file=adjustl(trim(DepPerimInfile)), exist=IsThere )
-      write(global_info,*)&
-        "Trying to read deposit contour file"
-      write(global_info,*)"Full file name = ",adjustl(trim(DepPerimInfile))
-      write(global_info,*)"  Exists = ",IsThere
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)&
+          "Trying to read deposit contour file"
+        write(outlog(io),*)"Full file name = ",adjustl(trim(DepPerimInfile))
+        write(outlog(io),*)"  Exists = ",IsThere
+      endif;enddo
       if(.not.IsThere)then
-        write(global_error,*)"ERROR: Could not find contour file."
-        write(global_error,*)&
-          "       Please copy file to current directory"
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"ERROR: Could not find contour file."
+          write(errlog(io),*)"       Please copy file to current directory"
+        endif;enddo
         stop 1
       endif
 
-      write(global_info,*)"Opening ",DepPerimInfile
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Opening ",DepPerimInfile
+      endif;enddo
+
       open(unit=20,file=DepPerimInfile)
       read(20,*)npoints
       allocate(DepPerm_lon(npoints))
@@ -452,8 +481,10 @@
         loc_y(1:nymax) = y_cc_pd(1:nymax)
         loc_dx = dx
         loc_dy = dy
-        write(global_info,*)dx,loc_x(1),loc_x(nxmax)
-        write(global_info,*)dy,loc_y(1),loc_y(nymax)
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)dx,loc_x(1),loc_x(nxmax)
+          write(outlog(io),*)dy,loc_y(1),loc_y(nymax)
+        endif;enddo
       endif
         ! Get the min and max extents of the deposit
       DepPerm_x_min = minval(BCpos(1,:))
@@ -461,7 +492,7 @@
       DepPerm_y_min = minval(BCpos(2,:))
       DepPerm_y_max = maxval(BCpos(2,:))
         ! And the indicies on the computational grid bracketing these points
-      !write(global_info,*)"HFS: double-check this calculation",loc_dx,loc_dy
+      !write(outlog(io),*)"HFS: double-check this calculation",loc_dx,loc_dy
       DepPerm_i_min =   floor((DepPerm_x_min-loc_x(1))/loc_dx) - 1
       DepPerm_i_max = ceiling((DepPerm_x_max-loc_x(1))/loc_dx) + 1
       DepPerm_j_min =   floor((DepPerm_y_min-loc_y(1))/loc_dy) - 1
@@ -624,7 +655,9 @@
                 u_star = u_star * FricVel_ip(i,j)
                 Fv = Fv_coeff*u_star*2000.0_ip/GRAV
               else
-                write(global_info,*)"Unknown resuspension scheme: ",FvID
+                do io=1,2;if(VB(io).le.verbosity_error)then
+                  write(errlog(io),*)"Unknown resuspension scheme: ",FvID
+                endif;enddo
                 stop 1
               endif
               ! assign to array and convert from m-2 s-1 to km-2 hr-1

@@ -106,7 +106,9 @@
 
       open(unit=10,file=infile,status='old',err=1900)
 
-      write(global_info,*)"    Searching for OPTMOD=OSCAR"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"    Searching for OPTMOD=OSCAR"
+      endif;enddo
       nmods = 0
       read(10,'(a80)',iostat=ios)linebuffer
       do while(ios.eq.0)
@@ -125,18 +127,23 @@
       enddo
 
       useOceanCurrent = .false.
-      write(global_info,*)"    Continue reading input file for OSCAR block"
-        !write(global_info,*)linebuffer
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"    Continue reading input file for OSCAR block"
+      endif;enddo
        ! Check if we're going to use OceanCurrents
         read(10,'(a80)',iostat=ios,err=2010)linebuffer
 
         read(linebuffer,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           useOceanCurrent = .true.
-          write(global_info,*)"    Using ocean currents"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    Using ocean currents"
+          endif;enddo
         elseif(answer(1:2).eq.'no') then
           useOceanCurrent = .false.
-          write(global_info,*)"    Not using ocean currents"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    Not using ocean currents"
+          endif;enddo
         else
           go to 2011
         endif
@@ -148,18 +155,23 @@
           !   (iyear.eq.1992.and.imonth(1).lt.10))then
           if(iyear.lt.1993)then
             useOceanCurrent = .false.
-            write(global_info,*)"Use of OSCAR currents requested, but the eruption occurs"
-            write(global_info,*)"before the data are availible."
+            do io=1,2;if(VB(io).le.verbosity_info)then
+              write(outlog(io),*)"Use of OSCAR currents requested, but the eruption occurs"
+              write(outlog(io),*)"before the data are availible."
+            endif;enddo
           else
             useOceanCurrent = .true.
-            write(global_info,*)"Planning to use OSCAR current data"
+            do io=1,2;if(VB(io).le.verbosity_info)then
+              write(outlog(io),*)"Planning to use OSCAR current data"
+            endif;enddo
           endif
 
             ! And read the file name
           read(10,'(a80)',iostat=ios,err=2010)linebuffer
           read(linebuffer,*) oscar_dir
-          write(global_info,*)"OSCAR data located in : ",oscar_dir
-
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"OSCAR data located in : ",oscar_dir
+          endif;enddo
         endif
 
 2010  continue
@@ -167,17 +179,19 @@
 
       return
 
-1900  write(global_info,*)  'error: cannot find input file: ',infile
-      write(global_info,*)  'Program stopped'
-      write(global_log,*)  'error: cannot find input file: ',infile
-      write(global_log,*)  'Program stopped'
+1900  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*)  'error: cannot find input file: ',infile
+        write(errlog(io),*)  'Program stopped'
+      endif;enddo
       stop 1
 
 
-2011  write(global_log,*) 'Error reading whether to use ocean currents.'
-      write(global_log,*) 'Answer must be yes or no.'
-      write(global_log,*) 'You gave:',linebuffer
-      write(global_log,*) 'Program stopped'
+2011  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*) 'Error reading whether to use ocean currents.'
+        write(errlog(io),*) 'Answer must be yes or no.'
+        write(errlog(io),*) 'You gave:',linebuffer
+        write(errlog(io),*) 'Program stopped'
+      endif;enddo
       stop 1
 
 
@@ -196,9 +210,11 @@
 
       implicit none
 
-      write(global_info,*)"--------------------------------------------------"
-      write(global_info,*)"---------- ALLOCATE_OSCAR ------------------------"
-      write(global_info,*)"--------------------------------------------------"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"--------------------------------------------------"
+        write(outlog(io),*)"---------- ALLOCATE_OSCAR ------------------------"
+        write(outlog(io),*)"--------------------------------------------------"
+      endif;enddo
 
       allocate(Vx_surf_1_sp(nxmax,nymax)); Vx_surf_1_sp = 0.0_sp
       allocate(Vy_surf_1_sp(nxmax,nymax)); Vy_surf_1_sp = 0.0_sp
@@ -316,10 +332,12 @@
                                "/oscar_",iyear,".nc"
  116  format(a50,a7,i4,a3)
       oscar_filename=trim(adjustl(oscar_filename))
-      write(global_info,*)"Opening ",oscar_filename
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Opening ",oscar_filename
+      endif;enddo
       nSTAT = nf90_open(oscar_filename,NF90_NOWRITE,ncid_oscar)
-      if(nSTAT.ne.0) write(global_info,*)'ERROR open oscar file: ',&
-                     oscar_filename,nf90_strerror(nSTAT)
+!      if(nSTAT.ne.0) write(outlog(io),*)'ERROR open oscar file: ',&
+!                     oscar_filename,nf90_strerror(nSTAT)
       nSTAT = nf90_inq_dimid(ncid_oscar,"time",osc_t_dim_id)
       nSTAT = nf90_Inquire_Dimension(ncid_oscar,osc_t_dim_id,len=osc_ntmax)
       nSTAT = nf90_inq_dimid(ncid_oscar,"lat",osc_y_dim_id)
@@ -357,8 +375,10 @@
         endif
       enddo
       if(eindex.eq.0)then
-        write(global_info,*)"Simulation crosses into the next year."
-        write(global_info,*)"Need to code up year wrapping for OSCAR data."
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Simulation crosses into the next year."
+          write(errlog(io),*)"Need to code up year wrapping for OSCAR data."
+        endif;enddo
         stop 1
       endif
       end_timestep = eindex-sindex+1
@@ -369,11 +389,15 @@
       allocate(oscar_year(end_timestep))
       oscar_year(1:end_timestep) = iyear
       allocate(oscar_tslice(end_timestep))
-      write(global_info,*)"We will need ",end_timestep," oscar files."
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"We will need ",end_timestep," oscar files."
+      endif;enddo
       do ti = 1,end_timestep
-        write(global_info,*)ti,oscar_Hour(ti),&
-          HS_YearOfEvent(oscar_Hour(ti),BaseYear,useLeap),&
-          HS_DayOfYear(oscar_Hour(ti),BaseYear,useLeap)
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)ti,oscar_Hour(ti),&
+                HS_YearOfEvent(oscar_Hour(ti),BaseYear,useLeap),&
+                HS_DayOfYear(oscar_Hour(ti),BaseYear,useLeap)
+        endif;enddo
         oscar_tslice(ti) = ti-1+sindex
       enddo
 
@@ -404,11 +428,15 @@
       elat_indx = 0
 
       if(maxlat_oscar.gt.60.0_ip)then
-        write(global_info,*)"WARNING:  OSCAR data only goes to 60N"
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"WARNING:  OSCAR data only goes to 60N"
+        endif;enddo
         slat_indx = 1
       endif
       if(minlat_oscar.lt.-60.0_ip)then
-        write(global_info,*)"WARNING:  OSCAR data only goes to -60N"
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"WARNING:  OSCAR data only goes to -60N"
+        endif;enddo
         elat_indx = osc_nymax
       endif
 
@@ -451,7 +479,7 @@
       subroutine Read_SurfaceVelocity(istep)
 
       use global_param,  only : &
-         VERB,EPS_SMALL
+         EPS_SMALL
 
       use mesh,          only : &
          nxmax,nymax
@@ -473,7 +501,9 @@
       integer             ::  status
 
 
-      write(global_info,*)"Reading next Oscar file."
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Reading next Oscar file."
+      endif;enddo
       ! Set pointer toggle
       if(OSCAR_toggle.eq.1)then
         OSCAR_toggle = 2
@@ -492,8 +522,8 @@
       nSTAT = nf90_get_var(ncid_oscar,osc_u_var_id,temp_var_sp,&
                  start = (/slon_indx,slat_indx,1,oscar_tslice(istep)/),       &
                  count = (/osc_nx,osc_ny,1,1/))
-      if(nSTAT.ne.0) write(global_info,*)'ERROR getting u: ',&
-                     oscar_filename,nf90_strerror(nSTAT) !,&
+!      if(nSTAT.ne.0) write(outlog(io),*)'ERROR getting u: ',&
+!                     oscar_filename,nf90_strerror(nSTAT) !,&
                      !slon_indx,slat_indx,1,oscar_tslice(istep),&
                      !osc_nx,osc_ny,1,1
 
@@ -510,8 +540,8 @@
       nSTAT = nf90_get_var(ncid_oscar,osc_v_var_id,temp_var_sp,&
                  start = (/slon_indx,slat_indx,1,oscar_tslice(istep)/),       &
                  count = (/osc_nx,osc_ny,1,1/))
-      if(nSTAT.ne.0) write(global_info,*)'ERROR getting v: ',&
-                     oscar_filename,nf90_strerror(nSTAT) !,& 
+!      if(nSTAT.ne.0) write(outlog(io),*)'ERROR getting v: ',&
+!                     oscar_filename,nf90_strerror(nSTAT) !,& 
                      !slon_indx,slat_indx,1,oscar_tslice(istep),&
                      !osc_nx,osc_ny,1,1
       do j = 1,osc_ny
@@ -532,7 +562,9 @@
       intpol2 = 1
       ier2 = 0
 
-      if(VERB.gt.2)write(global_info,*)"Interpolating osc_u "
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Interpolating osc_u "
+      endif;enddo
       !call rgrd2_sp(osc_nx,   osc_ny,     &
       !              osc_x_sp,  osc_y_sp,    &
       !              osc_u_sp(:,:),         &
@@ -551,7 +583,9 @@
         Vx_surf_2_sp = tmp_regrid2d_sp
       endif
 
-      if(VERB.gt.2)write(global_info,*)"Interpolating osc_v "
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Interpolating osc_v "
+      endif;enddo
       !call rgrd2_sp(osc_nx,   osc_ny,     &
       !              osc_x_sp,  osc_y_sp,    &
       !              osc_v_sp(:,:),         &

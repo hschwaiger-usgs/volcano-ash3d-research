@@ -82,7 +82,9 @@
 
       open(unit=10,file=infile,status='old',err=1900)
 
-      write(global_info,*)"    Searching for OPTMOD=TOPO"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"    Searching for OPTMOD=TOPO"
+      endif;enddo
       nmods = 0
       read(10,'(a80)',iostat=ios)linebuffer
       do while(ios.eq.0)
@@ -101,18 +103,23 @@
       enddo
 
       useTopo = .false.
-      write(global_info,*)&
-        "    Continue reading input file for topo block"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"    Continue reading input file for topo block"
+      endif;enddo
        ! Check if we're going to use topography
         read(10,'(a80)',iostat=ios,err=2010)linebuffer
 
         read(linebuffer,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           useTopo = .true.
-          write(global_info,*)"    Using topography"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    Using topography"
+          endif;enddo
         elseif(answer(1:2).eq.'no') then
           useTopo = .false.
-          write(global_info,*)"    Not using topography"
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"    Not using topography"
+          endif;enddo
         else
           go to 2011
         endif
@@ -121,12 +128,17 @@
           ! Check if we're using topography, then get the format code
           read(10,'(a80)',iostat=ios,err=2010)linebuffer
           read(linebuffer,*,iostat=ioerr) topoFormat,rad_smooth
-          if(topoFormat.eq.1)&
-            write(global_info,*)"Read topoFormat = 1 (ETOPO1)"
-          if(topoFormat.eq.2)&
-            write(global_info,*)"Read topoFormat = 2 (GEBCO08)"
-          write(global_info,*)"    Read smoothing radius = ",&
-                               real(rad_smooth,kind=4)
+          if(topoFormat.eq.1)then
+            do io=1,2;if(VB(io).le.verbosity_info)then
+              write(outlog(io),*)"Read topoFormat = 1 (ETOPO1)"
+            endif;enddo
+          elseif(topoFormat.eq.2)then
+            do io=1,2;if(VB(io).le.verbosity_info)then
+              write(outlog(io),*)"Read topoFormat = 2 (GEBCO08)"
+              write(outlog(io),*)"    Read smoothing radius = ",&
+                                 real(rad_smooth,kind=4)
+            endif;enddo
+          endif
           if(IsLatLon)then
             if(rad_smooth.le.min(de,dn)*DEG2RAD*RAD_EARTH)then
               useSmoothTopo = .false.
@@ -143,7 +155,9 @@
           ! And read the file name
           read(10,'(a80)',iostat=ios,err=2010)linebuffer
           read(linebuffer,*) file_topo
-          write(global_info,*)"    Read file_topo = ",file_topo
+          do io=1,2;if(VB(io).le.verbosity_info)then           
+            write(outlog(io),*)"    Read file_topo = ",file_topo
+          endif;enddo
         endif
 
 2010  continue
@@ -151,16 +165,18 @@
 
       return
 
-1900  write(global_info,*)  'Error: cannot find input file: ',infile
-      write(global_info,*)  'Program stopped'
-      write(global_log,*)  'error: cannot find input file: ',infile
-      write(global_log,*)  'Program stopped'
+1900  do io=1,2;if(VB(io).le.verbosity_error)then             
+        write(errlog(io),*)  'Error: cannot find input file: ',infile
+        write(errlog(io),*)  'Program stopped'
+      endif;enddo
       stop 1
 
-2011  write(global_log,*) 'Error reading whether to use topography.'
-      write(global_log,*) 'Answer must be yes or no.'
-      write(global_log,*) 'You gave:',linebuffer
-      write(global_log,*) 'Program stopped'
+2011  do io=1,2;if(VB(io).le.verbosity_error)then             
+        write(errlog(io),*) 'Error reading whether to use topography.'
+        write(errlog(io),*) 'Answer must be yes or no.'
+        write(errlog(io),*) 'You gave:',linebuffer
+        write(errlog(io),*) 'Program stopped'
+      endif;enddo
       stop 1
 
 
@@ -179,9 +195,11 @@
       integer :: nx,ny
       integer :: ngridnode
 
-      write(global_info,*)"--------------------------------------------------"
-      write(global_info,*)"---------- ALLOCATE_TOPO -------------------------"
-      write(global_info,*)"--------------------------------------------------"
+      do io=1,2;if(VB(io).le.verbosity_info)then             
+        write(outlog(io),*)"--------------------------------------------------"
+        write(outlog(io),*)"---------- ALLOCATE_TOPO -------------------------"
+        write(outlog(io),*)"--------------------------------------------------"
+      endif;enddo
       ngridnode = (nx+3)*(ny+3)
 
       allocate(topo_grid(0:nx+2,0:ny+2));       topo_grid = 0.0_ip
@@ -257,9 +275,6 @@
 
       subroutine get_topo
 
-      use global_param,  only : &
-         VERB
-
       use mesh,          only : &
          IsLatLon,lon_cc_pd,lat_cc_pd
 
@@ -279,17 +294,23 @@
         call get_minmax_lonlat(minlon_Topo,maxlon_Topo,minlat_Topo,maxlat_Topo)
       endif
 
-      if(VERB.gt.1)write(global_info,*)"min max lon = ",minlon_Topo,maxlon_Topo
-      if(VERB.gt.1)write(global_info,*)"min max lat = ",minlat_Topo,maxlat_Topo
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        if(VERB.gt.1)write(outlog(io),*)"min max lon = ",minlon_Topo,maxlon_Topo
+        if(VERB.gt.1)write(outlog(io),*)"min max lat = ",minlat_Topo,maxlat_Topo
+      endif;enddo
 
       call load_topo
       call interp_topo
 
       if(useSmoothTopo)then
-        write(global_info,*)"Smoothing topography"
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"Smoothing topography"
+        endif;enddo
         call SmoothTopo
       else
-        write(global_info,*)"Topography will not be smoothed."
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"Topography will not be smoothed."
+        endif;enddo
       endif
 
       end subroutine get_topo
@@ -318,7 +339,9 @@
       integer :: start_lat_idx,start_lon_idx,end_lon_idx
       integer :: ilat,ilon,idx
 
-      write(global_info,*)"Inside load_topo"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Inside load_topo"
+      endif;enddo
         ! Check to see if the domain straddles the anti-meridian
       !if (minlon.lt.180.0_ip.and.maxlon.gt.180.0_ip)then
       !  lon_shift_flag = 1
@@ -327,12 +350,12 @@
       !endif
 
       nSTAT = nf90_open(adjustl(trim(file_topo)),NF90_NOWRITE,ncid)
-      if(nSTAT.ne.0)write(global_info,*)'ERROR: nf90_open to read header:', &
-                           nf90_strerror(nSTAT)
       if(nSTAT.ne.0)then
-        write(global_info,*)'Could not open -',adjustl(trim(file_topo)),'-'
-        write(global_info,*)NF90_NOWRITE,ncid
-        write(global_info,*)'Exiting'
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)'Could not open -',adjustl(trim(file_topo)),'-'
+          write(errlog(io),*)NF90_NOWRITE,ncid
+          write(errlog(io),*)'Exiting'
+        endif;enddo
         stop 1
       endif
       nSTAT = nf90_inq_varid(ncid,'z',topo_var_id)
@@ -427,7 +450,9 @@
 
         deallocate(dum1d_short)
       else
-        write(global_info,*)"topoFormat must equal 1 or 2."
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"topoFormat must equal 1 or 2."
+        endif;enddo
         stop 1
       endif
       nSTAT = nf90_close(ncid)
@@ -457,7 +482,9 @@
       real(kind=ip) :: xc,yc,xfrac,yfrac
       integer       :: ilon,ilat
 
-      write(global_info,*)"Inside interp_topo"
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Inside interp_topo"
+      endif;enddo
 
       ! Loop over all the computational grid points
       do i=0,nxmax+1
@@ -500,10 +527,14 @@
           xc = 1.0_ip-xfrac
           yc = 1.0_ip-yfrac
           if(xc.gt.1.0_ip+EPS_SMALL.or.xc.lt.0.0_ip-EPS_SMALL)then
-            write(global_info,*)'lon ',i,olam,lon_raw(ilon),xc
+            do io=1,2;if(VB(io).le.verbosity_error)then
+              write(errlog(io),*)'lon ',i,olam,lon_raw(ilon),xc
+            endif;enddo
           endif
           if(yc.gt.1.0_ip+EPS_SMALL.or.yc.lt.0.0_ip-EPS_SMALL)then
-            write(global_info,*)'lat ',j,ophi,lat_raw(ilat),yc
+            do io=1,2;if(VB(io).le.verbosity_error)then
+              write(errlog(io),*)'lat ',j,ophi,lat_raw(ilat),yc
+            endif;enddo
           endif
 
           a1=xc*yc
