@@ -1282,7 +1282,7 @@
          EPS_TINY,CFL
 
       use mesh,          only : &
-        nxmax,nymax,nzmax,ts0,ts1,z_cc_pd,dz_vec_pd
+        nxmax,nymax,nzmax,ts0,z_cc_pd,dz_vec_pd
 
       use time_data,     only : &
          dt

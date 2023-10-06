@@ -280,6 +280,15 @@
 
       implicit none
 
+      !INTERFACE
+      !  subroutine get_minmax_lonlat(lonmin,lonmax,latmin,latmax)
+      !    real(kind=8),intent(out) :: lonmin
+      !    real(kind=8),intent(out) :: lonmax
+      !    real(kind=8),intent(out) :: latmin
+      !    real(kind=8),intent(out) :: latmax
+      !  end subroutine 
+      !END INTERFACE
+
       ! First we need to get the extents of the computational grid
       if(IsLatLon)then
         !Just get min and max of lat and lon.
@@ -295,8 +304,8 @@
       endif
 
       do io=1,2;if(VB(io).le.verbosity_info)then
-        if(VERB.gt.1)write(outlog(io),*)"min max lon = ",minlon_Topo,maxlon_Topo
-        if(VERB.gt.1)write(outlog(io),*)"min max lat = ",minlat_Topo,maxlat_Topo
+        write(outlog(io),*)"min max lon = ",minlon_Topo,maxlon_Topo
+        write(outlog(io),*)"min max lat = ",minlat_Topo,maxlat_Topo
       endif;enddo
 
       call load_topo

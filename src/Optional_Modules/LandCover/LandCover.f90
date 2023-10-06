@@ -509,7 +509,7 @@
       use mesh,          only : &
          nxmax,nymax,xy2ll_ylat,xy2ll_xlon,lonLL,latLL,xLL,yLL, &
          A3d_iprojflag,A3d_lam0,A3d_phi0,A3d_phi1,A3d_phi2, &
-         A3d_k0_scale,A3d_radius_earth,de,dn,dx,dy,IsLatLon,&
+         A3d_k0_scale,A3d_Re,de,dn,dx,dy,IsLatLon,&
          lon_cc_pd,lat_cc_pd
 
       use projection,    only : &
@@ -556,7 +556,7 @@
             iy = int((lat_LC-latLL)/dn) + 1
           else
             call PJ_proj_for(lon_LC,lat_LC, A3d_iprojflag, &
-                       A3d_lam0,A3d_phi0,A3d_phi1,A3d_phi2,A3d_k0_scale,A3d_radius_earth, &
+                       A3d_lam0,A3d_phi0,A3d_phi1,A3d_phi2,A3d_k0_scale,A3d_Re, &
                        xout,yout)
             ix = int((xout-xLL)/dx) + 1
             iy = int((yout-yLL)/dy) + 1
