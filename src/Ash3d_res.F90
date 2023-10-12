@@ -66,6 +66,11 @@
          Airport_thickness_TS,Airport_thickness,nairports,&
            ReadAirports
 
+#ifdef USENETCDF
+      use Ash3d_Netcdf,  only : &
+           NC_RestartFile_LoadConcen
+#endif
+
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
 !         Insert 'use' statements here
@@ -111,10 +116,6 @@
       real(kind=ip)         :: MassConsErr
 
       INTERFACE
-#ifdef USENETCDF
-        !subroutine NC_RestartFile_LoadConcen
-        !end subroutine NC_RestartFile_LoadConcen
-#endif
         subroutine Set_OS_Env
         end subroutine Set_OS_Env
         subroutine Read_Control_File
@@ -268,11 +269,26 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   Initialize concen and any special source terms here
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      if(.not.LoadConcen)then
-       ! Initialize arrays if we haven't already loaded the concentration from
-       ! a previous run
-       concen_pd = 0.0_ip
-       DepositGranularity = 0.0_ip
+      if(LoadConcen)then
+        ! We are initializing the concentration and time from an output file
+        ! Currently, Ash3d assumes the concentration file is compatible with
+        ! the computational grid and grainsize distribution
+#ifdef USENETCDF
+        call NC_RestartFile_LoadConcen
+#else
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"ERROR: Loading concentration files requires previous netcdf"
+          write(errlog(io),*)"       output.  This Ash3d executable was not compiled with"
+          write(errlog(io),*)"       netcdf support.  Please recompile Ash3d with"
+          write(errlog(io),*)"       USENETCDF=T, or select another source."
+        endif;enddo
+        stop 1
+#endif
+      else
+        ! Initialize arrays if we haven't already loaded the concentration from
+        ! a previous run
+        concen_pd = 0.0_ip
+        DepositGranularity = 0.0_ip
       endif
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES

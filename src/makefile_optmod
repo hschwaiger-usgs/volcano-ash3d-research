@@ -239,7 +239,7 @@ ifeq ($(RUN), DEBUG)
 endif
 ifeq ($(RUN), DEBUGOMP)
     FFLAGS =  -g3 -pg -Wall -fbounds-check -pedantic -fimplicit-none -Wunderflow -Wuninitialized -Wmaybe-uninitialized -ffpe-trap=invalid,zero,overflow -fdefault-real-8 -fopenmp -lgomp
-    ASH3DEXEC=Ash3d_res_debugOMP
+    ASH3DEXEC=Ash3d_res_debugomp
 endif
 # Profiling flags
 ifeq ($(RUN), PROF)
@@ -334,7 +334,7 @@ ifeq ($(USENETCDF), T)
 endif
 
 Ash3d_res: $(OBJECTS) $(DATAOBJ) $(OPTMODS_OBJ) Ash3d_res.F90 $(MFILE)
-	$(FC) $(OPTMODS_FPP) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Ash3d_res.F90 
+	$(FC) $(FPPFLAGS) $(OPTMODS_FPP) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Ash3d_res.F90 
 	$(FC) $(FFLAGS) $(EXFLAGS) $(OBJECTS) $(DATAOBJ) Ash3d_res.o $(OPTMODS_OBJ) $(LIBS) -o $(ASH3DEXEC)
 	mkdir -p ../bin
 	mv $(ASH3DEXEC) ../bin/$(ASH3DEXEC)
