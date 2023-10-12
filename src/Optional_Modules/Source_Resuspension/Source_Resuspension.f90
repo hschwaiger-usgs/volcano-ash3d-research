@@ -392,7 +392,7 @@
       use mesh,          only : &
          nxmax,nymax,x_cc_pd,y_cc_pd,lon_cc_pd,lat_cc_pd,dx,dy,de,dn,IsLatLon,&
          ivent,jvent,A3d_iprojflag, &
-         A3d_lam0,A3d_phi0,A3d_phi1,A3d_phi2,A3d_k0_scale,A3d_radius_earth
+         A3d_lam0,A3d_phi0,A3d_phi1,A3d_phi2,A3d_k0_scale,A3d_Re
 
       use projection,    only : &
            PJ_proj_for
@@ -472,7 +472,7 @@
           !if(lon_in.lt.0.0)lon_in=lon_in+360.0_dp
           lat_in = real(DepPerm_lat(i),kind=dp)
           call PJ_proj_for(lon_in,lat_in,A3d_iprojflag, &
-                       A3d_lam0,A3d_phi0,A3d_phi1,A3d_phi2,A3d_k0_scale,A3d_radius_earth, &
+                       A3d_lam0,A3d_phi0,A3d_phi1,A3d_phi2,A3d_k0_scale,A3d_Re, &
                       xout,yout)
           BCpos(1,i) = real(xout,kind=ip)
           BCpos(2,i) = real(yout,kind=ip)

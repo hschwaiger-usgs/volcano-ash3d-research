@@ -62,7 +62,7 @@
          nmods
 
       use Source,        only : &
-        SourceType,e_Duration,e_Volume,MassFlux,e_EndTime,e_PlumeHeight
+        SourceType,e_Duration,e_Volume,MassFluxRate,e_EndTime,e_PlumeHeight
 
       use io_data,       only : &
         infile
@@ -144,7 +144,7 @@
       ! Initialize some eruption values
       e_Duration(1)  = 0.0_ip
       e_Volume(1)    = 0.0_ip
-      MassFlux(1)  = 0.0_ip
+      MassFluxRate(1)  = 0.0_ip
       e_EndTime(1) = 0.0_ip
 
       ! Now read to the end of the input file and read the Optional Modudle
@@ -296,6 +296,9 @@
 
       subroutine Read_SatMassLoading
 
+      use global_param,    only : &
+         EPS_SMALL
+
       use solution,      only : &
          concen_pd
 
@@ -376,75 +379,41 @@
         write(outlog(io),*)"About to open sat file : ",SatInfile
       endif;enddo
       nSTAT=nf90_open(SatInfile,NF90_NOWRITE, ncid)
-!      if(nSTAT.ne.0) &
-!        write(global_log,*)'ERROR: open satellite file: ',nf90_strerror(nSTAT)
 
       if(SatData_Type.eq.1)then
       ! Get dim ids and sizes
       nSTAT = nf90_inq_dimid(ncid,"nx",x_dim_id)
-      if(nSTAT.ne.0) &
-        write(global_log,*)'ERROR: inq_varid nx: ',nf90_strerror(nSTAT)
       nSTAT = nf90_Inquire_Dimension(ncid,x_dim_id,name=name_dum,len=sat_nx)
-!      if(nSTAT.ne.0) &
-!        write(outlog(io),*)'ERROR: Inquire_Dimension nx: ', &
-!                             nf90_strerror(nSTAT)
 
       nSTAT = nf90_inq_dimid(ncid,"ny",y_dim_id)
-      if(nSTAT.ne.0) &
-        write(global_log,*)'ERROR: inq_varid t: ',nf90_strerror(nSTAT)
       nSTAT = nf90_Inquire_Dimension(ncid,y_dim_id,name=name_dum,len=sat_ny)
-!      if(nSTAT.ne.0) &
-!        write(outlog(io),*)'ERROR: Inquire_Dimension ny: ', &
-!                             nf90_strerror(nSTAT)
 
       nSTAT = nf90_inq_dimid(ncid,"single",s_dim_id)
-      if(nSTAT.ne.0) &
-        write(global_log,*)'ERROR: inq_varid single: ',nf90_strerror(nSTAT)
       nSTAT = nf90_Inquire_Dimension(ncid,s_dim_id,name=name_dum,len=sat_ns)
-!      if(nSTAT.ne.0) &
-!        write(outlog(io),*)'ERROR: Inquire_Dimension ns: ', &
-!                             nf90_strerror(nSTAT)
-
 
       ! Get variable ids
       nSTAT = nf90_inq_varid(ncid,"LAT",lat_var_id)
-      if(nSTAT.ne.0) &
-        write(global_log,*)'ERROR: inq_varid LAT: ',nf90_strerror(nSTAT)
       !nSTAT = nf90_Inquire_Attribute(ncid, lat_var_id,"missing_value",    &
       !                       xtype, length, attnum)
       nSTAT = nf90_get_att(ncid,lat_var_id,"missing_value",LAT_MissValue)
 
 
       nSTAT = nf90_inq_varid(ncid,"LON",lon_var_id)
-      if(nSTAT.ne.0) &
-        write(global_log,*)'ERROR: inq_varid LON: ',nf90_strerror(nSTAT)
       nSTAT = nf90_get_att(ncid,lon_var_id,"missing_value",LON_MissValue)
 
       nSTAT = nf90_inq_varid(ncid,"ASH_PROBABILITY",AshProb_var_id)
-      if(nSTAT.ne.0) &
-        write(global_log,*)'ERROR: inq_varid ASH_PROBABILITY: ',nf90_strerror(nSTAT)
       nSTAT = nf90_get_att(ncid,AshProb_var_id,"missing_value",AshProb_MissValue)
 
       nSTAT = nf90_inq_varid(ncid,"ASH_HEIGHT",AshHeight_var_id)
-      if(nSTAT.ne.0) &
-        write(global_log,*)'ERROR: inq_varid ASH_HEIGHT: ',nf90_strerror(nSTAT)
       nSTAT = nf90_get_att(ncid,AshHeight_var_id,"missing_value",AshHeight_MissValue)
 
       nSTAT = nf90_inq_varid(ncid,"ASH_MASS_LOADING",AshMassLoad_var_id)
-      if(nSTAT.ne.0) &
-        write(global_log,*)'ERROR: inq_varid ASH_MASS_LOADING: ',nf90_strerror(nSTAT)
       nSTAT = nf90_get_att(ncid,AshMassLoad_var_id,"missing_value",AshMassLoad_MissValue)
       nSTAT = nf90_inq_varid(ncid,"ASH_EFFECTIVE_RADIUS",AshEffecRad_var_id)
-      if(nSTAT.ne.0) &
-        write(global_log,*)'ERROR: inq_varid : ASH_EFFECTIVE_RADIUS',nf90_strerror(nSTAT)
       nSTAT = nf90_get_att(ncid,AshEffecRad_var_id,"missing_value",AshEffecRad_MissValue)
 
       nSTAT = nf90_inq_varid(ncid,"TOTAL_AREA",TotalArea_var_id)
-      if(nSTAT.ne.0) &
-        write(global_log,*)'ERROR: inq_varid TOTAL_AREA: ',nf90_strerror(nSTAT)
       nSTAT = nf90_inq_varid(ncid,"TOTAL_MASS",TotalMass_var_id)
-      if(nSTAT.ne.0) &
-        write(global_log,*)'ERROR: inq_varid TOTAL_MASS: ',nf90_strerror(nSTAT)
 
       !write(outlog(io),*)x_dim_id,y_dim_id,s_dim_id
       !write(outlog(io),*)lat_var_id,lon_var_id
@@ -510,7 +479,7 @@
       dum_int = 0
       do i=1,sat_nx
         do j=1,sat_ny
-          if(AshMassLoad_SatIn(i,j).ne.AshMassLoad_MissValue)then
+          if(abs(AshMassLoad_SatIn(i,j)-AshMassLoad_MissValue).gt.EPS_SMALL)then
             dum_sp = dum_sp + (AshMassLoad_SatIn(i,j)              & ! in g/m2
                                * 1.0e6_sp                          & ! in g/km2
                                * real(AshCloudPixArea,kind=sp)      & ! in g
@@ -528,11 +497,6 @@
 
       ! Close file
       nSTAT = nf90_close(ncid)
-      if(nSTAT.ne.0) &
-          write(global_log,*)'ERROR: close FILE_OUT: ',                &
-                              nf90_strerror(nSTAT)
-
-      endif
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)"Successfully read satellite data."
       endif;enddo
@@ -548,7 +512,7 @@
       do i=1,sat_nx
         do j=1,sat_ny
           pixlon = lon_SatIn(i,j)
-          If(pixlon.lt.0.0_ip)pixlon=pixlon+360.0_ip
+          if(pixlon.lt.0.0_ip) pixlon=pixlon+360.0_ip
           ix = floor((pixlon-lon_cc_pd(1)-0.5_ip*de)/de) + 1
           x_index(i,j) = ix
 
@@ -573,37 +537,37 @@
       ! And finally, add the mass to the concen array
       !  This branch is for adding a linear 1km thick profile based on
       !  pixel height
-      if(1.eq.0)then
-      concen_pd(:,:,:,:,:) = 0.0_ip
-      do i=1,sat_nx
-        do j=1,sat_ny
-          ix = x_index(i,j)
-          iy = y_index(i,j)
-          iz = z_index(i,j)
-          ig = 1            ! Currently, just put everything in the smallest gs bin
-          if(AshMassLoad_SatIn(i,j).ne.AshMassLoad_MissValue)then
-            if(ix.ge.1.and.ix.le.nxmax.and.&
-               iy.ge.1.and.iy.le.nymax.and.&
-               iz.ge.1.and.iz.le.nzmax-(iparts-1))then
-              pixmass = AshMassLoad_SatIn(i,j)                & ! in g/m2
-                          * 1.0e6_sp                          & ! in g/km2
-                          * real(AshCloudPixArea,kind=sp)      & ! in g
-                          * 1.0e-3_sp                           ! in kg
-              concen_pd(ix,iy,iz:iz+iparts-1,ig,ts1) = &
-                   concen_pd(ix,iy,iz:iz+iparts-1,ig,ts1) + &
-                   pixmass                           / & ! in kg
-                   kappa_pd(ix,iy,iz)                   * & ! in kg/km3
-                   frac                                  ! partitioned
-            else
-              do io=1,2;if(VB(io).le.verbosity_info)then
-                write(outlog(io),*)"Satellite load not in domain: ",i,j,AshMassLoad_SatIn(i,j)
-                write(outlog(io),*)"                              ",lon_SatIn(i,j),lat_SatIn(i,j)
-              endif;enddo
-            endif
-          endif
-        enddo
-      enddo
-      else
+      !if(1.eq.0)then
+      !concen_pd(:,:,:,:,:) = 0.0_ip
+      !do i=1,sat_nx
+      !  do j=1,sat_ny
+      !    ix = x_index(i,j)
+      !    iy = y_index(i,j)
+      !    iz = z_index(i,j)
+      !    ig = 1            ! Currently, just put everything in the smallest gs bin
+      !    if(AshMassLoad_SatIn(i,j).ne.AshMassLoad_MissValue)then
+      !      if(ix.ge.1.and.ix.le.nxmax.and.&
+      !         iy.ge.1.and.iy.le.nymax.and.&
+      !         iz.ge.1.and.iz.le.nzmax-(iparts-1))then
+      !        pixmass = AshMassLoad_SatIn(i,j)                & ! in g/m2
+      !                    * 1.0e6_sp                          & ! in g/km2
+      !                    * real(AshCloudPixArea,kind=sp)      & ! in g
+      !                    * 1.0e-3_sp                           ! in kg
+      !        concen_pd(ix,iy,iz:iz+iparts-1,ig,ts1) = &
+      !             concen_pd(ix,iy,iz:iz+iparts-1,ig,ts1) + &
+      !             pixmass                           / & ! in kg
+      !             kappa_pd(ix,iy,iz)                   * & ! in kg/km3
+      !             frac                                  ! partitioned
+      !      else
+      !        do io=1,2;if(VB(io).le.verbosity_info)then
+      !          write(outlog(io),*)"Satellite load not in domain: ",i,j,AshMassLoad_SatIn(i,j)
+      !          write(outlog(io),*)"                              ",lon_SatIn(i,j),lat_SatIn(i,j)
+      !        endif;enddo
+      !      endif
+      !    endif
+      !  enddo
+      !enddo
+      !else
         ! This branch places a Gaussian distribution based on a weighted
         ! mean height and the variance
       concen_pd(:,:,:,:,:) = 0.0_ip
@@ -670,6 +634,8 @@
           endif
         enddo
       enddo
+      !endif
+
       endif
 
       SatAshMassLoad(1:nxmax,1:nymax) = 0.0
@@ -678,7 +644,6 @@
                                       + concen_pd(1:nxmax,1:nymax,k,ig,ts1)
       enddo
       concen_pd(:,:,:,:,:) = 0.0_ip
-
 
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)&

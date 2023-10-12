@@ -821,19 +821,19 @@
          R_GAS_DRYAIR,CP_AIR
 
       use MetReader,     only : &
-         nx_submet,ny_submet,np_fullmet,np_fullmet,p_fullmet_sp,&
+         nx_submet,ny_submet,np_fullmet,p_fullmet_sp,&
          MR_geoH_metP_last,MR_geoH_MetP_next
 
       implicit none
 
       integer, intent(in) :: last_or_next
 
-      real(kind=ip) :: z(np_fullmet)
-      real(kind=ip) :: u(np_fullmet)
-      real(kind=ip) :: v(np_fullmet)
-      real(kind=ip) :: p(np_fullmet)
-      real(kind=ip) :: T(np_fullmet)
-      real(kind=ip) :: Q(np_fullmet)
+      real(kind=ip),dimension(:),allocatable :: z
+      real(kind=ip),dimension(:),allocatable :: u
+      real(kind=ip),dimension(:),allocatable :: v
+      real(kind=ip),dimension(:),allocatable :: p
+      real(kind=ip),dimension(:),allocatable :: T
+      real(kind=ip),dimension(:),allocatable :: Q
       !real(kind=sp) :: dv_dz(np_fullmet)
 
       integer :: i,j,k
@@ -842,6 +842,13 @@
       real(kind=ip) :: ptemp1,ptemp2,ptemp,delptemp
       real(kind=ip) :: u1,u2,dv1
       real(kind=ip) :: temp_term,mech_term
+
+      allocate(z(np_fullmet))
+      allocate(u(np_fullmet))
+      allocate(v(np_fullmet))
+      allocate(p(np_fullmet))
+      allocate(T(np_fullmet))
+      allocate(Q(np_fullmet))
 
 
       refP = 1.0e5_ip   ! reference pressure for potential temperature
