@@ -111,16 +111,11 @@
          Airport_thickness_TS,Airport_thickness,nairports,&
            ReadAirports
 
-<<<<<<< HEAD
-#ifdef USENETCDF
-      use Ash3d_Netcdf,  only : &
-=======
       use Ash3d_ASCII_IO,  only : &
            vprofilewriter
 
 #ifdef USENETCDF
       use Ash3d_Netcdf_IO,only : &
->>>>>>> devel
            NC_RestartFile_LoadConcen
 #endif
 
@@ -165,13 +160,6 @@
       real(kind=ip)         :: MassConsErr
 
       INTERFACE
-<<<<<<< HEAD
-        subroutine Set_OS_Env
-        end subroutine Set_OS_Env
-        subroutine Read_Control_File
-        end subroutine Read_Control_File
-=======
->>>>>>> devel
         subroutine input_data_ResetParams
         end subroutine input_data_ResetParams
         subroutine alloc_arrays
