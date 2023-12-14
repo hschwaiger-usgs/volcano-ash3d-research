@@ -8,7 +8,7 @@
 !  This software, along with auxillary USGS libraries and related repositories,
 !  can be found at https://code.usgs.gov/vsc/ash3d
 !
-!  Installation instruction are given in the README.md file of this repository.
+!  Installation instructions are given in the README.md file of this repository.
 !  Basic usage instructions are given in doc/UsersGuide.md.
 !
 !  The program description and numerical methodology employed is described in:
@@ -65,7 +65,8 @@
          Write_PT_Data,Write_PR_Data
 
       use time_data,     only : &
-         time,dt,Simtime_in_hours,t0,t1,t2,ntmax
+         time,dt,Simtime_in_hours,t0,t1,t2,ntmax,tcount1,tcount2,&
+         tcount_rate,tcount_max,tw_tot
 
       use Ash3d_Program_Control, only : &
            Parse_Command_Line, &
@@ -152,9 +153,8 @@
       implicit none
 
       integer               :: itime
-      integer               :: i,k
-      integer               :: isize
-      real(kind=ip)         :: Interval_Frac
+      integer               :: i,k,isize
+      real(kind=dp)         :: Interval_Frac
       logical               :: Load_MesoSteps
       logical               :: StopTimeLoop   = .false.
       real(kind=ip)         :: MassConsErr
@@ -186,6 +186,7 @@
 
       ! Start time logging
       call cpu_time(t0) !time is a scaler real
+      call system_clock(tcount1,tcount_rate,tcount_max)
 
       ! First, parse the command line
       call Parse_Command_Line
@@ -485,7 +486,7 @@
         ! Call output_results before time loop to create output files
       call output_results
 
-      ntmax = max(1,3*int(Simtime_in_hours/dt))
+      ntmax = max(1,4*int(Simtime_in_hours/dt))
       call Allocate_NTime(ntmax)
       if (Write_PR_Data)then
         call Allocate_Profile(nzmax,ntmax,nvprofiles)
@@ -791,7 +792,7 @@
         ! DT_MIN, but may be adjusted down so as to land on the next
         ! output time.  time has already been integrated forward so
         ! NextWriteTime-time should be near zero for output steps.
-        if(Output_at_WriteTimes.and.(NextWriteTime-time.lt.DT_MIN))then
+        if(Output_at_WriteTimes.and.(abs(NextWriteTime-time).lt.DT_MIN))then
             ! Generate output variables if we haven't already
           if(.not.Called_Gen_Output_Vars)then
             call Gen_Output_Vars
@@ -946,16 +947,16 @@
          (StopConditions(1).eqv..true.))then
         ! Normal stop condition set by user tracking the deposit
         do io=1,2;if(VB(io).le.verbosity_info)then
-          write(outlog(io),*)"Percent accumulated/exited exceeds ",StopValue
+          write(outlog(io),'(a35,f8.3)')"Percent accumulated/exited exceeds ",StopValue
         endif;enddo
       endif
       if((CheckConditions(2).eqv..true.).and.&
          (StopConditions(2).eqv..true.))then
         ! Normal stop condition if simulation exceeds alloted time
         do io=1,2;if(VB(io).le.verbosity_info)then
-          write(outlog(io),*)"time.ge.Simtime_in_hours"
-          write(outlog(io),*)"              Time = ",real(time,kind=4)
-          write(outlog(io),*)"  Simtime_in_hours = ",real(Simtime_in_hours,kind=4)
+          write(outlog(io),'(a24)')"time.ge.Simtime_in_hours"
+          write(outlog(io),'(a21,f15.3)')"              Time = ",time
+          write(outlog(io),'(a21,f15.3)')"  Simtime_in_hours = ",Simtime_in_hours
         endif;enddo
       endif
       if((CheckConditions(3).eqv..true.).and.&
@@ -970,11 +971,11 @@
         ! Error stop condition if the concen and outflow do not match the source
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"Cummulative source volume does not match aloft + outflow"
-          write(errlog(io),*)" tot_vol = ",tot_vol
-          write(errlog(io),*)" SourceCumulativeVol = ",SourceCumulativeVol
-          write(errlog(io),*)" Abs. Error = ",&
+          write(errlog(io),'(a11,f15.5)')" tot_vol = ",tot_vol
+          write(errlog(io),'(a11,f15.5)')" SourceCumulativeVol = ",SourceCumulativeVol
+          write(errlog(io),'(a14,f15.5)')" Abs. Error = ",&
                                abs((tot_vol-SourceCumulativeVol)/SourceCumulativeVol)
-          write(errlog(io),*)" e_Volume = ",e_Volume
+          write(errlog(io),'(a12,f15.5)')" e_Volume = ",e_Volume
         endif;enddo
         stop 1
       endif
@@ -983,10 +984,10 @@
         ! Error stop condition if any volume measure is negative
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"One of the volume measures is negative."
-          write(errlog(io),*)"        dep_vol = ",dep_vol
-          write(errlog(io),*)"        aloft_vol = ",aloft_vol
-          write(errlog(io),*)"        outflow_vol = ",outflow_vol
-          write(errlog(io),*)"        SourceCumulativeVol = ",SourceCumulativeVol
+          write(errlog(io),'(a30,f13.5)')"                    dep_vol = ",dep_vol
+          write(errlog(io),'(a30,f13.5)')"                  aloft_vol = ",aloft_vol
+          write(errlog(io),'(a30,f13.5)')"                outflow_vol = ",outflow_vol
+          write(errlog(io),'(a30,f13.5)')"        SourceCumulativeVol = ",SourceCumulativeVol
         endif;enddo
         stop 1
       endif
@@ -1002,8 +1003,8 @@
 
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),5012)   ! put footnotes below output table
-        write(outlog(io),*)'time=',real(time,kind=4),',dt=',real(dt,kind=4)
-        write(outlog(io),*)"Mass Conservation Error = ",MassConsErr
+        write(outlog(io),'(a5,f10.3,a5,f10.3)')'time=',time,', dt=',dt
+        write(outlog(io),'(a26,e15.5)')"Mass Conservation Error = ",MassConsErr
       endif;enddo
 
         ! Make sure we have the latest output variables and go to write routines
@@ -1020,9 +1021,10 @@
       call output_results
       ! Write results to log and standard output
       call cpu_time(t2) ! time is a scalar real
+      call system_clock(tcount2,tcount_rate,tcount_max)
       do io=1,2;if(VB(io).le.verbosity_info)then
-        write(outlog(io),5003) t1-t0, t2-t1, time*HR_2_S
-        write(outlog(io),5004) time*HR_2_S/(t2-t1)
+        write(outlog(io),5003) t1-t0,tw_tot,t2-t1,&
+                               real(tcount2-tcount1,kind=dp)/real(tcount_rate,kind=dp)
       endif;enddo
       call TimeStepTotals(itime)
       do io=1,2;if(VB(io).le.verbosity_info)then
@@ -1047,10 +1049,14 @@
                 5x,'Source',6x,'Deposit',7x,'Aloft',5x,'Outflow',&
                 7x,'Total',10x,'km2')
 
-5003  format(/,5x,'Set-up time              = ',f15.4,' seconds',/&
-               5x,'Execution time           = ',f15.4,' seconds',/&
-              ,5x,'Simulation time          = ',f15.4,' seconds')       
-5004  format(  5x,'Execution time/CPU time  = ',f15.4)       
+5003  format(/,5x,'Set-up time (cpu)         = ',f15.4,' seconds',/&
+               5x,'MetReader time (cpu)      = ',f15.4,' seconds',/&
+               5x,'Total solver time (cpu)   = ',f15.4,' seconds',/&
+              ,5x,'Wall clock time           = ',f15.4,' seconds') 
+!5003  format(/,5x,'Set-up time              = ',f15.4,' seconds',/&
+!               5x,'Execution time           = ',f15.4,' seconds',/&
+!              ,5x,'Simulation time          = ',f15.4,' seconds')      
+!5004  format(  5x,'Execution time/CPU time  = ',f15.4)
 5005  format(  5x,'Ending deposit volume    = ',f15.4,' km3 DRE')       
 5006  format(  5x,'Ending total volume      = ',f15.4,' km3 DRE')       
 5007  format(  5x,'Building time array of plume height & eruption rate')
