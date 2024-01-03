@@ -94,13 +94,29 @@
 
       implicit none
 
-      integer            :: HS_YearOfEvent
+      !integer            :: HS_YearOfEvent
       character(len=3)   :: answer
-      character(len=80)  :: linebuffer
+      character(len=80)  :: linebuffer080
       integer :: ios
       character(len=20)  :: mod_name
       integer :: substr_pos
       integer :: iyear
+
+      INTERFACE
+        integer function HS_YearOfEvent(HoursSince,byear,useLeaps)
+          real(kind=8),intent(in) :: HoursSince
+          integer     ,intent(in) :: byear
+          logical     ,intent(in) :: useLeaps
+        end function HS_YearOfEvent
+        !real(kind=8) function HS_hours_since_baseyear(iyear,imonth,iday,hours,byear,useLeaps)
+        !  integer            :: iyear
+        !  integer            :: imonth
+        !  integer            :: iday
+        !  real(kind=8)       :: hours
+        !  integer            :: byear
+        !  logical            :: useLeaps
+        !end function HS_hours_since_baseyear
+      END INTERFACE
 
       iyear = HS_YearOfEvent(SimStartHour,BaseYear,useLeap)
 
@@ -110,15 +126,15 @@
         write(outlog(io),*)"    Searching for OPTMOD=OSCAR"
       endif;enddo
       nmods = 0
-      read(10,'(a80)',iostat=ios)linebuffer
+      read(10,'(a80)',iostat=ios)linebuffer080
       do while(ios.eq.0)
-        read(10,'(a80)',iostat=ios)linebuffer
+        read(10,'(a80)',iostat=ios)linebuffer080
 
-        substr_pos = index(linebuffer,'OPTMOD')
+        substr_pos = index(linebuffer080,'OPTMOD')
         if(substr_pos.eq.1)then
           ! found an optional module
           !  Parse for the keyword
-          read(linebuffer,1104)mod_name
+          read(linebuffer080,1104)mod_name
           if(adjustl(trim(mod_name)).eq.'OSCAR')then
             exit
           endif
@@ -131,9 +147,9 @@
         write(outlog(io),*)"    Continue reading input file for OSCAR block"
       endif;enddo
        ! Check if we're going to use OceanCurrents
-        read(10,'(a80)',iostat=ios,err=2010)linebuffer
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
 
-        read(linebuffer,'(a3)',err=2011) answer
+        read(linebuffer080,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           useOceanCurrent = .true.
           do io=1,2;if(VB(io).le.verbosity_info)then
@@ -167,8 +183,8 @@
           endif
 
             ! And read the file name
-          read(10,'(a80)',iostat=ios,err=2010)linebuffer
-          read(linebuffer,*) oscar_dir
+          read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+          read(linebuffer080,*) oscar_dir
           do io=1,2;if(VB(io).le.verbosity_info)then
             write(outlog(io),*)"OSCAR data located in : ",oscar_dir
           endif;enddo
@@ -189,7 +205,7 @@
 2011  do io=1,2;if(VB(io).le.verbosity_error)then
         write(errlog(io),*) 'Error reading whether to use ocean currents.'
         write(errlog(io),*) 'Answer must be yes or no.'
-        write(errlog(io),*) 'You gave:',linebuffer
+        write(errlog(io),*) 'You gave:',linebuffer080
         write(errlog(io),*) 'Program stopped'
       endif;enddo
       stop 1
@@ -313,11 +329,38 @@
 
       integer :: sindex,eindex
       integer :: ti,i,j
-      real(kind=dp)   :: HS_hours_since_baseyear
+      !real(kind=dp)   :: HS_hours_since_baseyear
       real(kind=ip)  :: minlon_oscar,maxlon_oscar,minlat_oscar,maxlat_oscar
-      integer        :: HS_DayOfYear
-      integer        :: HS_YearOfEvent
+      !integer        :: HS_DayOfYear
+      !integer        :: HS_YearOfEvent
       integer        :: iyear
+
+      INTERFACE
+        subroutine get_minmax_lonlat(lonmin,lonmax,latmin,latmax)
+          real(kind=8) :: lonmin
+          real(kind=8) :: lonmax
+          real(kind=8) :: latmin
+          real(kind=8) :: latmax
+        end subroutine get_minmax_lonlat
+        integer function HS_YearOfEvent(HoursSince,byear,useLeaps)
+          real(kind=8) :: HoursSince
+          integer      :: byear
+          logical      :: useLeaps
+        end function HS_YearOfEvent
+        integer function HS_DayOfYear(HoursSince,byear,useLeaps)
+          real(kind=8) :: HoursSince
+          integer      :: byear
+          logical      :: useLeaps
+        end function HS_DayOfYear
+        real(kind=8) function HS_hours_since_baseyear(iyear,imonth,iday,hours,byear,useLeaps)
+          integer      :: iyear
+          integer      :: imonth
+          integer      :: iday
+          real(kind=8) :: hours
+          integer      :: byear
+          logical      :: useLeaps
+        end function HS_hours_since_baseyear
+      END INTERFACE
 
       OSCAR_toggle = 1
 
@@ -486,6 +529,8 @@
 
       use netcdf
 
+      use ieee_arithmetic
+
       implicit none
 
       integer, intent(in) :: istep
@@ -574,7 +619,7 @@
       !              intpol2,w2_sp,lw2,  iw2,liw2,ier2)
       do i = 1,nxmax
         do j = 1,nymax
-          if(isnan(tmp_regrid2d_sp(i,j)))tmp_regrid2d_sp(i,j)=0.0_sp
+          if(ieee_is_nan(tmp_regrid2d_sp(i,j)))tmp_regrid2d_sp(i,j)=0.0_sp
         enddo
       enddo
       if(OSCAR_toggle.eq.1)then
@@ -595,7 +640,7 @@
       !              intpol2,w2_sp,lw2,  iw2,liw2,ier2)
       do i = 1,nxmax
         do j = 1,nymax
-          if(isnan(tmp_regrid2d_sp(i,j)))tmp_regrid2d_sp(i,j)=0.0_sp
+          if(ieee_is_nan(tmp_regrid2d_sp(i,j)))tmp_regrid2d_sp(i,j)=0.0_sp
         enddo
       enddo
       if(OSCAR_toggle.eq.1)then

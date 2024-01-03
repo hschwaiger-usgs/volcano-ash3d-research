@@ -73,7 +73,7 @@
       implicit none
 
       character(len=3)  :: answer
-      character(len=80)  :: linebuffer
+      character(len=80)  :: linebuffer080
       integer :: ios !,ioerr
       character(len=20) :: mod_name
       integer :: substr_pos
@@ -85,15 +85,15 @@
       endif;enddo
 
       nmods = 0
-      read(10,'(a80)',iostat=ios)linebuffer
+      read(10,'(a80)',iostat=ios)linebuffer080
       do while(ios.eq.0)
-        read(10,'(a80)',iostat=ios)linebuffer
+        read(10,'(a80)',iostat=ios)linebuffer080
 
-        substr_pos = index(linebuffer,'OPTMOD')
+        substr_pos = index(linebuffer080,'OPTMOD')
         if(substr_pos.eq.1)then
           ! found an optional module
           !  Parse for the keyword
-          read(linebuffer,1104)mod_name
+          read(linebuffer080,1104)mod_name
           if(adjustl(trim(mod_name)).eq.'LC')then
             exit
           endif
@@ -106,9 +106,9 @@
         write(outlog(io),*)"    Continue reading input file for LandCover block"
       endif;enddo
        ! Check if we're going to use land classification data
-        read(10,'(a80)',iostat=ios,err=2010)linebuffer
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
 
-        read(linebuffer,'(a3)',err=2011) answer
+        read(linebuffer080,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           useLandCover = .true.
           do io=1,2;if(VB(io).le.verbosity_info)then
@@ -124,10 +124,10 @@
         endif
 
         if (useLandCover) then
-          read(10,'(a80)',iostat=ios,err=2010)linebuffer
-          read(linebuffer,*) LandCover_Format
-          read(10,'(a80)',iostat=ios,err=2010)linebuffer
-          read(linebuffer,*) LC_dir
+          read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+          read(linebuffer080,*) LandCover_Format
+          read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+          read(linebuffer080,*) LC_dir
           do io=1,2;if(VB(io).le.verbosity_info)then
             write(outlog(io),*)"    LandCover data located in : ",LC_dir
           endif;enddo
@@ -147,7 +147,7 @@
 2011  do io=1,2;if(VB(io).le.verbosity_error)then
         write(errlog(io),*) 'Error reading whether to use land cover.'
         write(errlog(io),*) 'Answer must be yes or no.'
-        write(errlog(io),*) 'You gave:',linebuffer
+        write(errlog(io),*) 'You gave:',linebuffer080
         write(errlog(io),*) 'Program stopped'
       endif;enddo
       stop 1
@@ -281,6 +281,15 @@
       integer(kind=1),allocatable,dimension(:) :: glc_line
       character(len=130),dimension(3) :: LC_files
       integer :: open_status
+
+      INTERFACE
+        subroutine get_minmax_lonlat(lonmin,lonmax,latmin,latmax)
+          real(kind=8) :: lonmin
+          real(kind=8) :: lonmax
+          real(kind=8) :: latmin
+          real(kind=8) :: latmax
+        end subroutine get_minmax_lonlat
+      END INTERFACE
 
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)"Inside load_LC"
@@ -584,8 +593,8 @@
             ! only one LC cell, find which one and use its value
             do ic = 1,14
               if(LC_sum(i,j,ic).eq.1)then
-                LC_grid(i,j) = ic-1  ! We decrement here because the LC classes
-                                     ! are from 0-13
+                LC_grid(i,j) = int(ic-1,kind=1)  ! We decrement here because the LC classes
+                                                 ! are from 0-13
               else
                 cycle
               endif
@@ -600,8 +609,8 @@
               clon = xy2ll_xlon(i,j)
               clat = xy2ll_ylat(i,j)
             endif
-            iidx = (clon-lon_raw_LC(1))/dlon +1
-            jidx = (clat-lat_raw_LC(1))/dlat +1
+            iidx = floor((clon-lon_raw_LC(1))/dlon) +1
+            jidx = floor((clat-lat_raw_LC(1))/dlat) +1
             LC_grid(i,j) = LC_raw(iidx,jidx)
           elseif(tot_sum.gt.1)then
             ! Multiple LC cells mapped here, find which is most frequent
@@ -617,12 +626,12 @@
               enddo
               if(noccur.eq.1)then
                 ! only one land use class is most frequent, use it
-                LC_grid(i,j) = maxloc(LC_sum(i,j,2:14),DIM=1) - 1
+                LC_grid(i,j) = int(maxloc(LC_sum(i,j,2:14),dim=1)-1,kind=1)
               else
                 ! more than one land use class is most frequent
                 ! for now, just pick the first (most vegitated), but we might
                 ! want to do something more sophisticated here
-                LC_grid(i,j) = maxloc(LC_sum(i,j,2:14),DIM=1) - 1
+                LC_grid(i,j) = int(maxloc(LC_sum(i,j,2:14),dim=1)-1,kind=1)
               endif
             else
               ! this is water

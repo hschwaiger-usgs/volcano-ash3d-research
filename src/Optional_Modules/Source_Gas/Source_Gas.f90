@@ -139,10 +139,8 @@
 
       implicit none
 
-      character(len=3)   :: answer
-      character(len=80)  :: linebuffer
-      character(len=120) :: llinebuffer
-      !character(len=130) :: lllinebuffer
+      character(len=80)  :: linebuffer080
+      character(len=120) :: linebuffer120
       character :: testkey
       integer :: ios !,ioerr
       character(len=20) :: mod_name
@@ -229,26 +227,26 @@
 
       ! For custom sources, we want to read down to the source block
       !   Read first comment block
-      read(10,'(a80)')linebuffer
-      read(linebuffer,*)testkey
+      read(10,'(a80)')linebuffer080
+      read(linebuffer080,*)testkey
       do while(testkey.eq.'#'.or.testkey.eq.'*')
          ! Line is a comment, read next line
-        read(10,'(a80)')linebuffer
-        read(linebuffer,*)testkey
+        read(10,'(a80)')linebuffer080
+        read(linebuffer080,*)testkey
       enddo
       ! Read through block 1
       do while(testkey.ne.'#'.and.testkey.ne.'*')
          ! Line is a comment, read next line
-        read(10,'(a80)')linebuffer
-        read(linebuffer,*)testkey
+        read(10,'(a80)')linebuffer080
+        read(linebuffer080,*)testkey
       enddo
       ! Read next block header
-      read(10,'(a80)')llinebuffer
-      read(llinebuffer,*)testkey
+      read(10,'(a80)')linebuffer080
+      read(linebuffer080,*)testkey
       do while(testkey.eq.'#'.or.testkey.eq.'*')
          ! Line is a comment, read next line
-        read(10,'(a80)')llinebuffer
-        read(llinebuffer,*)testkey
+        read(10,'(a80)')linebuffer080
+        read(linebuffer080,*)testkey
       enddo
 
       do io=1,2;if(VB(io).le.verbosity_info)then
@@ -265,9 +263,10 @@
       setSrcGasSurf_Perim = .false.
       do i=1,neruptions
         !read start time, duration, plume height, volume of each pulse
-        read(llinebuffer,*,err=1910) dum1_int,dum2_int,dum3_int, &
-                                     dum1_ip, dum2_ip, dum3_ip,  &
-                              EruptGasSpeciesID(i),EruptGasSrcStruc(i),EruptGasMassRate(i)
+        read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, &
+                                       dum1_ip, dum2_ip, dum3_ip,  &
+                                       EruptGasSpeciesID(i),EruptGasSrcStruc(i),&
+                                       EruptGasMassRate(i)
 
         if(EruptGasSrcStruc(i).eq.1)then
           ! This is a distributed source over a surface region
@@ -275,16 +274,16 @@
           ! read the file name
           if(.not.setSrcGasSurf_Perim)then ! This is initialized to .false. and only set to
                                            ! true if a distributed source has be read
-            read(llinebuffer,*) dum1_int,dum2_int,dum3_int, &
-                                         dum1_ip, dum2_ip, dum3_ip,  &
-                              EruptGasSpeciesID(i),EruptGasSrcStruc(i),EruptGasMassRate(i),&
-                              SrcGasSurf_PerimInfile
+            read(linebuffer120,*) dum1_int,dum2_int,dum3_int, &
+                                  dum1_ip, dum2_ip, dum3_ip,  &
+                                  EruptGasSpeciesID(i),EruptGasSrcStruc(i),&
+                                  EruptGasMassRate(i),SrcGasSurf_PerimInfile
             setSrcGasSurf_Perim = .true.
           endif
           ! Read name of file outlining the contour of the region
         elseif(EruptGasSrcStruc(i).eq.2)then
           ! Read the lon/lat of the point on surface
-          read(llinebuffer,*,err=1910) dum1_int,dum2_int,dum3_int,dum1_ip, &
+          read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int,dum1_ip, &
                                 dum2_ip,dum3_ip,&
                                 EruptGasSpeciesID(i),EruptGasSrcStruc(i),EruptGasMassRate(i), &
                                 EruptGasVentLon(i),EruptGasVentLat(i)
@@ -343,7 +342,7 @@
           stop 1
         endif
           ! Read the next line 
-        read(10,'(a130)')llinebuffer
+        read(10,'(a120)')linebuffer120
 
       enddo
       ! Initialize some eruption values
@@ -365,20 +364,19 @@
 
       nvar_User2d_XY_SrcGas = 0
       nmods = 0
-      read(10,'(a80)',iostat=ios)linebuffer
+      read(10,'(a80)',iostat=ios)linebuffer080
       do while(ios.eq.0)
-        read(10,'(a80)',iostat=ios)linebuffer
+        read(10,'(a80)',iostat=ios)linebuffer080
 
-        !read(linebuffer,*)testkey
-        substr_pos = index(linebuffer,'OPTMOD')
+        substr_pos = index(linebuffer080,'OPTMOD')
         if(substr_pos.eq.1)then
           ! found an optional module
           !  Parse for the keyword
-          read(linebuffer,1104)mod_name
+          read(linebuffer080,1104)mod_name
           if(adjustl(trim(mod_name)).eq.'SRC_GAS')then
             ! First line of SRC_GAS block is just the number of species to track
-            read(10,'(a80)',iostat=ios)linebuffer
-            read(linebuffer,*)ngas_max
+            read(10,'(a80)',iostat=ios)linebuffer080
+            read(linebuffer080,*)ngas_max
             do io=1,2;if(VB(io).le.verbosity_info)then
               write(outlog(io),*)"ngas_max = ",ngas_max
             endif;enddo
@@ -403,8 +401,8 @@
             allocate(GS_GasSpecies_OutputVertColDens(ngas_max))
             ! Get the list of species to trace
             do i=1,ngas_max
-              read(10,'(a80)',iostat=ios)linebuffer
-              read(linebuffer,*)GS_GasSpeciesID(i),dumstr1,dumstr2
+              read(10,'(a80)',iostat=ios)linebuffer080
+              read(linebuffer080,*)GS_GasSpeciesID(i),dumstr1,dumstr2
               testkey = dumstr1(1:1)
               if(testkey.eq.'T'.or.testkey.eq.'t')then
                 GS_GasSpecies_OutputSurfConc(i)=.true.
@@ -493,7 +491,7 @@
               else
                 do io=1,2;if(VB(io).le.verbosity_error)then
                   write(errlog(io),*)"ERROR: unknown gas code."
-                  write(errlog(io),*)linebuffer
+                  write(errlog(io),*)linebuffer080
                   write(errlog(io),*)GS_GasSpeciesID
                 endif;enddo
                 stop 1
@@ -526,8 +524,8 @@
 
 
             ! Now read the number of reactions to calculate
-            read(10,'(a80)',iostat=ios)linebuffer
-            read(linebuffer,*) nreactions
+            read(10,'(a80)',iostat=ios)linebuffer080
+            read(linebuffer080,*) nreactions
             allocate(Reaction_ID(nreactions))
             if(nreactions.lt.1)then
               do io=1,2;if(VB(io).le.verbosity_info)then
@@ -536,12 +534,12 @@
             else
               ! Loop through the reactions, read the reaction ID and parameter list
               do ireac=1,nreactions
-                read(10,'(a80)',iostat=ios)linebuffer
-                read(linebuffer,*) Reaction_ID(ireac)
+                read(10,'(a80)',iostat=ios)linebuffer080
+                read(linebuffer080,*) Reaction_ID(ireac)
                 if(Reaction_ID(ireac).eq.1)then
                   ! This is the SO2 -> SO4 reaction via a constant decay rate
                   ! The only parameter needed is the decay rate in seconds
-                  read(linebuffer,*) Reaction_ID(ireac),Gas_SO2_SO4_decay_rate
+                  read(linebuffer080,*) Reaction_ID(ireac),Gas_SO2_SO4_decay_rate
                   Gas_SO2_SO4_conversion_HLife = 0.693147180559945_ip/Gas_SO2_SO4_decay_rate/HR_2_S
                   do io=1,2;if(VB(io).le.verbosity_info)then
                     write(outlog(io),*)"SO2 to SO4 conversion reaction detected using a constant rate"
@@ -620,7 +618,7 @@
          nvar_User2d_XY
 
       use mesh,          only : &
-         nxmax,nymax,ts1
+         nxmax,nymax
 
       use solution,      only : &
          SpeciesID,SpeciesSubID
@@ -1111,7 +1109,7 @@
       subroutine Set_concen_Gas
 
       use mesh,          only : &
-         nxmax,nymax,ts0,ts1,kappa_pd
+         nxmax,nymax,ts0,kappa_pd
 
       use solution,      only : &
          concen_pd
@@ -1147,7 +1145,7 @@
       subroutine Gas_Chem_Convert
 
       use mesh,          only : &
-         nxmax,nymax,nzmax,nsmax,ts0,ts1
+         nxmax,nymax,nzmax,ts0,ts1
 
       use solution,      only : &
          concen_pd

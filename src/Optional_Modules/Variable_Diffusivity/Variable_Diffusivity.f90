@@ -132,7 +132,7 @@
       implicit none
 
       character(len=3)  :: answer
-      character(len=80)  :: linebuffer
+      character(len=80)  :: linebuffer080
       integer :: ios,ioerr
       character(len=20) :: mod_name
       integer :: substr_pos
@@ -143,15 +143,15 @@
         write(outlog(io),*)"    Searching for OPTMOD=VARDIFF"
       endif;enddo
       nmods = 0
-      read(10,'(a80)',iostat=ios)linebuffer
+      read(10,'(a80)',iostat=ios)linebuffer080
       do while(ios.eq.0)
-        read(10,'(a80)',iostat=ios)linebuffer
+        read(10,'(a80)',iostat=ios)linebuffer080
 
-        substr_pos = index(linebuffer,'OPTMOD')
+        substr_pos = index(linebuffer080,'OPTMOD')
         if(substr_pos.eq.1)then
           ! found an optional module
           !  Parse for the keyword
-          read(linebuffer,1104)mod_name
+          read(linebuffer080,1104)mod_name
           if(adjustl(trim(mod_name)).eq.'VARDIFF')then
             exit
           endif
@@ -166,8 +166,8 @@
       endif;enddo
 
       !Check if we're going to use variable diffusivity
-      read(10,'(a80)',iostat=ios,err=2010)linebuffer
-      read(linebuffer,'(a3)',err=2011) answer
+      read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+      read(linebuffer080,'(a3)',err=2011) answer
       if (answer.eq.'yes') then
         useVarDiffH = .true.
         do io=1,2;if(VB(io).le.verbosity_info)then
@@ -181,8 +181,8 @@
       else
         goto 2011
       endif
-      read(10,'(a80)',iostat=ios,err=2010)linebuffer
-      read(linebuffer,'(a3)',err=2011) answer
+      read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+      read(linebuffer080,'(a3)',err=2011) answer
       if (answer.eq.'yes') then
         useVarDiffV = .true.
         useTemperature = .true.
@@ -200,14 +200,14 @@
 
       if (useVarDiffH.or.useVarDiffV) then
         ! Check if we're using variable diffusivity, then get the constants
-        read(10,'(a80)',iostat=ios,err=2010)linebuffer
-        read(linebuffer,*,iostat=ioerr) KH_SmagC
-        read(10,'(a80)',iostat=ios,err=2010)linebuffer
-        read(linebuffer,*,iostat=ioerr) vonKarman
-        read(10,'(a80)',iostat=ios,err=2010)linebuffer
-        read(linebuffer,*,iostat=ioerr) LambdaC
-        read(10,'(a80)',iostat=ios,err=2010)linebuffer
-        read(linebuffer,*,iostat=ioerr) RI_CRIT
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+        read(linebuffer080,*,iostat=ioerr) KH_SmagC
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+        read(linebuffer080,*,iostat=ioerr) vonKarman
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+        read(linebuffer080,*,iostat=ioerr) LambdaC
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+        read(linebuffer080,*,iostat=ioerr) RI_CRIT
 
         !KH_SmagC  = 0.9
         !vonKarman = 0.4
@@ -239,7 +239,7 @@
 2011  do io=1,2;if(VB(io).le.verbosity_error)then
         write(errlog(io),*) 'Error reading whether to use variable diffusivity.'
         write(errlog(io),*) 'Answer must be yes or no.'
-        write(errlog(io),*) 'You gave:',linebuffer
+        write(errlog(io),*) 'You gave:',linebuffer080
         write(errlog(io),*) 'Program stopped'
       endif;enddo
       stop 1
@@ -309,7 +309,7 @@
       allocate(vy_meso_next_step_MetP_sp(nx_submet,ny_submet,np_fullmet))
 
         ! Precalculate the LES term
-      LES_L2ScaleCoeff = (KH_SmagC*KH_SmagC/real(PI*PI,kind=sp))
+      LES_L2ScaleCoeff = (KH_SmagC*KH_SmagC/(PI*PI))
 
       ! Set the start indecies
       indx_User2d_static_XY_VarDiff = nvar_User2d_static_XY

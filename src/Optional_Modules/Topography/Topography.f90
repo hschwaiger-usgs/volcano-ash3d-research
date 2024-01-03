@@ -75,7 +75,7 @@
       implicit none
 
       character(len=3)  :: answer
-      character(len=80)  :: linebuffer
+      character(len=80)  :: linebuffer080
       integer :: ios,ioerr
       character(len=20) :: mod_name
       integer :: substr_pos
@@ -86,15 +86,15 @@
         write(outlog(io),*)"    Searching for OPTMOD=TOPO"
       endif;enddo
       nmods = 0
-      read(10,'(a80)',iostat=ios)linebuffer
+      read(10,'(a80)',iostat=ios)linebuffer080
       do while(ios.eq.0)
-        read(10,'(a80)',iostat=ios)linebuffer
+        read(10,'(a80)',iostat=ios)linebuffer080
 
-        substr_pos = index(linebuffer,'OPTMOD')
+        substr_pos = index(linebuffer080,'OPTMOD')
         if(substr_pos.eq.1)then
           ! found an optional module
           !  Parse for the keyword
-          read(linebuffer,1104)mod_name
+          read(linebuffer080,1104)mod_name
           if(adjustl(trim(mod_name)).eq.'TOPO')then
             exit
           endif
@@ -107,9 +107,9 @@
         write(outlog(io),*)"    Continue reading input file for topo block"
       endif;enddo
        ! Check if we're going to use topography
-        read(10,'(a80)',iostat=ios,err=2010)linebuffer
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
 
-        read(linebuffer,'(a3)',err=2011) answer
+        read(linebuffer080,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           useTopo = .true.
           do io=1,2;if(VB(io).le.verbosity_info)then
@@ -126,8 +126,8 @@
           
         if (useTopo) then
           ! Check if we're using topography, then get the format code
-          read(10,'(a80)',iostat=ios,err=2010)linebuffer
-          read(linebuffer,*,iostat=ioerr) topoFormat,rad_smooth
+          read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+          read(linebuffer080,*,iostat=ioerr) topoFormat,rad_smooth
           if(topoFormat.eq.1)then
             do io=1,2;if(VB(io).le.verbosity_info)then
               write(outlog(io),*)"Read topoFormat = 1 (ETOPO1)"
@@ -153,8 +153,8 @@
             endif
           endif
           ! And read the file name
-          read(10,'(a80)',iostat=ios,err=2010)linebuffer
-          read(linebuffer,*) file_topo
+          read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+          read(linebuffer080,*) file_topo
           do io=1,2;if(VB(io).le.verbosity_info)then           
             write(outlog(io),*)"    Read file_topo = ",file_topo
           endif;enddo
@@ -174,7 +174,7 @@
 2011  do io=1,2;if(VB(io).le.verbosity_error)then             
         write(errlog(io),*) 'Error reading whether to use topography.'
         write(errlog(io),*) 'Answer must be yes or no.'
-        write(errlog(io),*) 'You gave:',linebuffer
+        write(errlog(io),*) 'You gave:',linebuffer080
         write(errlog(io),*) 'Program stopped'
       endif;enddo
       stop 1
@@ -202,8 +202,8 @@
       endif;enddo
       ngridnode = (nx+3)*(ny+3)
 
-      allocate(topo_grid(0:nx+2,0:ny+2));       topo_grid = 0.0_ip
-      allocate(topo_indx(0:nx+2,0:ny+2));       topo_indx = 0
+      allocate(topo_grid(0:nx+1,0:ny+1));       topo_grid = 0.0_ip
+      allocate(topo_indx(0:nx+1,0:ny+1));       topo_indx = 0
 
       ! Set the start indecies
       indx_User2d_static_XY_Topo = nvar_User2d_static_XY
@@ -280,14 +280,14 @@
 
       implicit none
 
-      !INTERFACE
-      !  subroutine get_minmax_lonlat(lonmin,lonmax,latmin,latmax)
-      !    real(kind=8),intent(out) :: lonmin
-      !    real(kind=8),intent(out) :: lonmax
-      !    real(kind=8),intent(out) :: latmin
-      !    real(kind=8),intent(out) :: latmax
-      !  end subroutine 
-      !END INTERFACE
+      INTERFACE
+        subroutine get_minmax_lonlat(lonmin,lonmax,latmin,latmax)
+          real(kind=8) :: lonmin
+          real(kind=8) :: lonmax
+          real(kind=8) :: latmin
+          real(kind=8) :: latmax
+        end subroutine 
+      END INTERFACE
 
       ! First we need to get the extents of the computational grid
       if(IsLatLon)then

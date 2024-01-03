@@ -37,7 +37,7 @@
 
       use global_param,  only : &
          useCalcFallVel,useDiffusion,useHorzAdvect,useVertAdvect,&
-         HR_2_S,useTemperature,DT_MIN,EPS_TINY,EPS_SMALL,&
+         useTemperature,DT_MIN,EPS_TINY,EPS_SMALL,&
          nmods,OPTMOD_names,StopConditions,CheckConditions, &
          useVarDiffH,useVarDiffV
 
@@ -75,7 +75,8 @@
 
       use Source,        only : &
          SourceNodeFlux,e_EndTime_final,e_Volume,&
-         SourceType,Source_in_dt,SourceNodeFlux_Area, &
+         SourceType,Source_in_dt,IsCustom_SourceType, &
+	   SourceNodeFlux_Area, &
            Calc_Normalized_SourceCol,&
            EruptivePulse_MassFluxRate,&
            CheckEruptivePulses,&
@@ -305,10 +306,12 @@
         ! Set up grids for solution and Met data
       call calc_mesh_params
 
-      if (((SourceType.eq.'umbrella').or.(SourceType.eq.'umbrella_air')))then
+      if(((SourceType.eq.'umbrella').or.(SourceType.eq.'umbrella_air')))then
         call Allocate_Source_Umbrella(nxmax,nymax,nzmax)
       endif
-      call Calc_Normalized_SourceCol
+      if(.not.IsCustom_SourceType)then
+        call Calc_Normalized_SourceCol
+      endif
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   Initialize concen and any special source terms here
@@ -792,7 +795,7 @@
         ! DT_MIN, but may be adjusted down so as to land on the next
         ! output time.  time has already been integrated forward so
         ! NextWriteTime-time should be near zero for output steps.
-        if(Output_at_WriteTimes.and.(abs(NextWriteTime-time).lt.DT_MIN))then
+        if(Output_at_WriteTimes.and.(NextWriteTime-time.lt.DT_MIN))then
             ! Generate output variables if we haven't already
           if(.not.Called_Gen_Output_Vars)then
             call Gen_Output_Vars
@@ -947,16 +950,16 @@
          (StopConditions(1).eqv..true.))then
         ! Normal stop condition set by user tracking the deposit
         do io=1,2;if(VB(io).le.verbosity_info)then
-          write(outlog(io),'(a35,f8.3)')"Percent accumulated/exited exceeds ",StopValue
+          write(outlog(io),*)"Percent accumulated/exited exceeds ",StopValue
         endif;enddo
       endif
       if((CheckConditions(2).eqv..true.).and.&
          (StopConditions(2).eqv..true.))then
         ! Normal stop condition if simulation exceeds alloted time
         do io=1,2;if(VB(io).le.verbosity_info)then
-          write(outlog(io),'(a24)')"time.ge.Simtime_in_hours"
-          write(outlog(io),'(a21,f15.3)')"              Time = ",time
-          write(outlog(io),'(a21,f15.3)')"  Simtime_in_hours = ",Simtime_in_hours
+          write(outlog(io),*)"time.ge.Simtime_in_hours"
+          write(outlog(io),*)"              Time = ",real(time,kind=4)
+          write(outlog(io),*)"  Simtime_in_hours = ",real(Simtime_in_hours,kind=4)
         endif;enddo
       endif
       if((CheckConditions(3).eqv..true.).and.&
@@ -971,11 +974,11 @@
         ! Error stop condition if the concen and outflow do not match the source
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"Cummulative source volume does not match aloft + outflow"
-          write(errlog(io),'(a11,f15.5)')" tot_vol = ",tot_vol
-          write(errlog(io),'(a11,f15.5)')" SourceCumulativeVol = ",SourceCumulativeVol
-          write(errlog(io),'(a14,f15.5)')" Abs. Error = ",&
+          write(errlog(io),*)" tot_vol = ",tot_vol
+          write(errlog(io),*)" SourceCumulativeVol = ",SourceCumulativeVol
+          write(errlog(io),*)" Abs. Error = ",&
                                abs((tot_vol-SourceCumulativeVol)/SourceCumulativeVol)
-          write(errlog(io),'(a12,f15.5)')" e_Volume = ",e_Volume
+          write(errlog(io),*)" e_Volume = ",e_Volume
         endif;enddo
         stop 1
       endif
@@ -984,10 +987,10 @@
         ! Error stop condition if any volume measure is negative
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"One of the volume measures is negative."
-          write(errlog(io),'(a30,f13.5)')"                    dep_vol = ",dep_vol
-          write(errlog(io),'(a30,f13.5)')"                  aloft_vol = ",aloft_vol
-          write(errlog(io),'(a30,f13.5)')"                outflow_vol = ",outflow_vol
-          write(errlog(io),'(a30,f13.5)')"        SourceCumulativeVol = ",SourceCumulativeVol
+          write(errlog(io),*)"        dep_vol = ",dep_vol
+          write(errlog(io),*)"        aloft_vol = ",aloft_vol
+          write(errlog(io),*)"        outflow_vol = ",outflow_vol
+          write(errlog(io),*)"        SourceCumulativeVol = ",SourceCumulativeVol
         endif;enddo
         stop 1
       endif
@@ -1003,8 +1006,8 @@
 
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),5012)   ! put footnotes below output table
-        write(outlog(io),'(a5,f10.3,a5,f10.3)')'time=',time,', dt=',dt
-        write(outlog(io),'(a26,e15.5)')"Mass Conservation Error = ",MassConsErr
+        write(outlog(io),*)'time=',real(time,kind=4),',dt=',real(dt,kind=4)
+        write(outlog(io),*)"Mass Conservation Error = ",MassConsErr
       endif;enddo
 
         ! Make sure we have the latest output variables and go to write routines

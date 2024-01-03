@@ -177,7 +177,7 @@
       implicit none
 
       character(len=3)  :: answer
-      character(len=80)  :: linebuffer
+      character(len=80)  :: linebuffer080
       integer :: ios,ioerr
       character(len=20) :: mod_name
       integer :: substr_pos
@@ -188,15 +188,15 @@
         write(outlog(io),*)"    Searching for OPTMOD=WETDEPO"
       endif;enddo
       nmods = 0
-      read(10,'(a80)',iostat=ios)linebuffer
+      read(10,'(a80)',iostat=ios)linebuffer080
       do while(ios.eq.0)
-        read(10,'(a80)',iostat=ios)linebuffer
+        read(10,'(a80)',iostat=ios)linebuffer080
 
-        substr_pos = index(linebuffer,'OPTMOD')
+        substr_pos = index(linebuffer080,'OPTMOD')
         if(substr_pos.eq.1)then
           ! found an optional module
           !  Parse for the keyword
-          read(linebuffer,1104)mod_name
+          read(linebuffer080,1104)mod_name
           if(adjustl(trim(mod_name)).eq.'WETDEPO')then
             exit
           endif
@@ -214,8 +214,8 @@
       endif;enddo
        ! Check if we're going to use wet deposition and which type
           ! Below-cloud rain
-        read(10,'(a80)',iostat=ios,err=2010)linebuffer
-        read(linebuffer,'(a3)',err=2011) answer
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+        read(linebuffer080,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           USE_WASHOUT_LIQ = .true.
           do io=1,2;if(VB(io).le.verbosity_info)then
@@ -230,8 +230,8 @@
           goto 2011
         endif
           ! In-cloud drop nucleation
-        read(10,'(a80)',iostat=ios,err=2010)linebuffer
-        read(linebuffer,'(a3)',err=2011) answer
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+        read(linebuffer080,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           USE_RAINOUT_LIQ = .true.
           do io=1,2;if(VB(io).le.verbosity_info)then
@@ -246,8 +246,8 @@
           goto 2011
         endif
           ! Below-cloud snow
-        read(10,'(a80)',iostat=ios,err=2010)linebuffer
-        read(linebuffer,'(a3)',err=2011) answer
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+        read(linebuffer080,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           USE_WASHOUT_ICE = .true.
           do io=1,2;if(VB(io).le.verbosity_info)then
@@ -262,8 +262,8 @@
           goto 2011
         endif
           ! In-cloud ice nucleation
-        read(10,'(a80)',iostat=ios,err=2010)linebuffer
-        read(linebuffer,'(a3)',err=2011) answer
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+        read(linebuffer080,'(a3)',err=2011) answer
         if (answer.eq.'yes') then
           USE_RAINOUT_ICE = .true.
           do io=1,2;if(VB(io).le.verbosity_info)then
@@ -286,8 +286,8 @@
 
         if (USE_WETDEPO) then
           ! We're using some form of wet deposition, then get the constants
-          read(10,'(a80)',iostat=ios,err=2010)linebuffer
-          read(linebuffer,*,iostat=ioerr) CloudLoc
+          read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+          read(linebuffer080,*,iostat=ioerr) CloudLoc
         endif
 
 2010  continue
@@ -304,7 +304,7 @@
 2011  do io=1,2;if(VB(io).le.verbosity_error)then
         write(errlog(io),*) 'Error reading whether to use wet depositiony.'
         write(errlog(io),*) 'Answer must be yes or no.'
-        write(errlog(io),*) 'You gave:',linebuffer
+        write(errlog(io),*) 'You gave:',linebuffer080
         write(errlog(io),*) 'Program stopped'
       endif;enddo
       stop 1

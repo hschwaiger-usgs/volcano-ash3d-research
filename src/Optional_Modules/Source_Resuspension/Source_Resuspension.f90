@@ -80,9 +80,9 @@
       implicit none
 
       !character(len=3)  :: answer
-      character(len=80)  :: linebuffer
-      character(len=120) :: llinebuffer
-      character(len=130) :: lllinebuffer
+      character(len=80)  :: linebuffer080
+      character(len=120) :: linebuffer120
+      character(len=130) :: linebuffer130
       character :: testkey !,testkey2
       integer :: ios !,ioerr
       character(len=20) :: mod_name
@@ -109,26 +109,26 @@
 
       ! For custom sources, we want to read down to the source block
       !   Read first comment block
-      read(10,'(a80)')linebuffer
-      read(linebuffer,*)testkey
+      read(10,'(a80)')linebuffer080
+      read(linebuffer080,*)testkey
       do while(testkey.eq.'#'.or.testkey.eq.'*')
          ! Line is a comment, read next line
-        read(10,'(a80)')linebuffer
-        read(linebuffer,*)testkey
+        read(10,'(a80)')linebuffer080
+        read(linebuffer080,*)testkey
       enddo
       ! Read through block 1
       do while(testkey.ne.'#'.and.testkey.ne.'*')
          ! Line is a comment, read next line
-        read(10,'(a80)')linebuffer
-        read(linebuffer,*)testkey
+        read(10,'(a80)')linebuffer080
+        read(linebuffer080,*)testkey
       enddo
       ! Read next block header
-      read(10,'(a80)')llinebuffer
-      read(llinebuffer,*)testkey
+      read(10,'(a80)')linebuffer080
+      read(linebuffer080,*)testkey
       do while(testkey.eq.'#'.or.testkey.eq.'*')
          ! Line is a comment, read next line
-        read(10,'(a80)')llinebuffer
-        read(llinebuffer,*)testkey
+        read(10,'(a80)')linebuffer080
+        read(linebuffer080,*)testkey
       enddo
 
       do io=1,2;if(VB(io).le.verbosity_info)then
@@ -145,11 +145,11 @@
       !                v   v  v    v    v
       ! 0 0 0 0.0   35.0 5.0  2  0.5   6.0e-8
 
-      read(llinebuffer,*,err=1910) iyear,imonth,iday,hour, &
+      read(linebuffer120,*,err=1910) iyear,imonth,iday,hour, &
                             e_Duration(1),e_PlumeHeight(1),&
                             FvID,u_star_thresh,Fv_coeff
-      read(10,'(a130)')lllinebuffer
-      DepPerimInfile = adjustl(trim(lllinebuffer))
+      read(10,'(a130)')linebuffer130
+      DepPerimInfile = adjustl(trim(linebuffer130))
 
       if( e_Duration(1).gt.Simtime_in_hours)then
         do io=1,2;if(VB(io).le.verbosity_info)then
@@ -211,16 +211,15 @@
         write(outlog(io),*)"    Searching for OPTMOD=SRC_RESUSP"
       endif;enddo
       nmods = 0
-      read(10,'(a80)',iostat=ios)linebuffer
+      read(10,'(a80)',iostat=ios)linebuffer080
       do while(ios.eq.0)
-        read(10,'(a80)',iostat=ios)linebuffer
+        read(10,'(a80)',iostat=ios)linebuffer080
 
-        !read(linebuffer,*)testkey
-        substr_pos = index(linebuffer,'OPTMOD')
+        substr_pos = index(linebuffer080,'OPTMOD')
         if(substr_pos.eq.1)then
           ! found an optional module
           !  Parse for the keyword
-          read(linebuffer,1104)mod_name
+          read(linebuffer080,1104)mod_name
           if(adjustl(trim(mod_name)).eq.'SRC_RESUSP')then
             do io=1,2;if(VB(io).le.verbosity_info)then
               write(outlog(io),*)"Found SRC_RESUSP block again"

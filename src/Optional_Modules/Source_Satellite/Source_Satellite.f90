@@ -69,9 +69,9 @@
 
       implicit none
 
-      character(len=80)  :: linebuffer
-      character(len=120) :: llinebuffer
-      character(len=130) :: lllinebuffer
+      character(len=80)  :: linebuffer080
+      character(len=120) :: linebuffer120
+      character(len=130) :: linebuffer130
       character :: testkey 
       integer :: ios!,ioerr
       character(len=20) :: mod_name
@@ -96,26 +96,26 @@
 
       ! For custom sources, we want to read down to the source block
       !   Read first comment block
-      read(10,'(a80)')linebuffer
-      read(linebuffer,*)testkey
+      read(10,'(a80)')linebuffer080
+      read(linebuffer080,*)testkey
       do while(testkey.eq.'#'.or.testkey.eq.'*')
          ! Line is a comment, read next line
-        read(10,'(a80)')linebuffer
-        read(linebuffer,*)testkey
+        read(10,'(a80)')linebuffer080
+        read(linebuffer080,*)testkey
       enddo
       ! Read through block 1
       do while(testkey.ne.'#'.and.testkey.ne.'*')
          ! Line is a comment, read next line
-        read(10,'(a80)')linebuffer
-        read(linebuffer,*)testkey
+        read(10,'(a80)')linebuffer080
+        read(linebuffer080,*)testkey
       enddo
       ! Read next block header
-      read(10,'(a80)')llinebuffer
-      read(llinebuffer,*)testkey
+      read(10,'(a80)')linebuffer080
+      read(linebuffer080,*)testkey
       do while(testkey.eq.'#'.or.testkey.eq.'*')
          ! Line is a comment, read next line
-        read(10,'(a80)')llinebuffer
-        read(llinebuffer,*)testkey
+        read(10,'(a80)')linebuffer080
+        read(linebuffer080,*)testkey
       enddo
 
       do io=1,2;if(VB(io).le.verbosity_info)then
@@ -125,12 +125,12 @@
       ! read the satellite-specific source parameters
       ! Note: some of these values may be reset depending on the settings
       !       of the block of the input file OPTMOD=SRC_SAT
-      read(llinebuffer,*,err=1910) iyear,imonth,iday,hour, e_Duration(1),&
+      read(linebuffer120,*,err=1910) iyear,imonth,iday,hour, e_Duration(1),&
                                    e_PlumeHeight(1),AshCloudThickness, &
                                    AshCloudPixArea
 
-      read(10,'(a130)')lllinebuffer
-      SatInfile = adjustl(trim(lllinebuffer))
+      read(10,'(a130)')linebuffer130
+      SatInfile = adjustl(trim(linebuffer130))
 
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)"     Satellite source time = ",iyear,imonth,iday,real(hour,kind=sp)
@@ -153,15 +153,15 @@
         write(outlog(io),*)"    Searching for OPTMOD=SRC_SAT"
       endif;enddo
       nmods = 0
-      read(10,'(a80)',iostat=ios)linebuffer
+      read(10,'(a80)',iostat=ios)linebuffer080
       do while(ios.eq.0)
-        read(10,'(a80)',iostat=ios)linebuffer
+        read(10,'(a80)',iostat=ios)linebuffer080
 
-        substr_pos = index(linebuffer,'OPTMOD')
+        substr_pos = index(linebuffer080,'OPTMOD')
         if(substr_pos.eq.1)then
           ! found an optional module
           !  Parse for the keyword
-          read(linebuffer,1104)mod_name
+          read(linebuffer080,1104)mod_name
           if(adjustl(trim(mod_name)).eq.'SRC_SAT')then
             exit
           endif
