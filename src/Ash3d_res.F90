@@ -42,11 +42,11 @@
          useVarDiffH,useVarDiffV
 
       use mesh,          only : &
-         ivent,jvent,nxmax,nymax,nzmax,nsmax,ts0,ts1
+         ivent,jvent,nxmax,nymax,nzmax,nsmax,ts0,ts1,ZPADDING,dz_vec_pd,z_cc_pd
 
       use solution,      only : &
          concen_pd,DepositGranularity,StopValue,aloft_percent_remaining, &
-         SourceCumulativeVol,dep_vol,aloft_vol,outflow_vol,tot_vol
+         SourceCumulativeVol,dep_vol,aloft_vol,outflow_vol,tot_vol,vf_pd
 
       use Output_Vars,   only : &
          DepositAreaCovered,DepositThickness,LoadVal,CloudLoadArea,&
@@ -76,7 +76,7 @@
       use Source,        only : &
          SourceNodeFlux,e_EndTime_final,e_Volume,&
          SourceType,Source_in_dt,IsCustom_SourceType, &
-	   SourceNodeFlux_Area, &
+           SourceNodeFlux_Area, &
            Calc_Normalized_SourceCol,&
            EruptivePulse_MassFluxRate,&
            CheckEruptivePulses,&
@@ -91,7 +91,7 @@
            AvgCon_Umbrella
 
       use Tephra,        only : &
-         n_gs_max,n_gs_aloft,&
+         n_gs_max,n_gs_aloft,Tephra_gsdiam,&
            Allocate_Tephra,&
            Allocate_Tephra_Met,&
            Prune_GS
@@ -156,6 +156,7 @@
       integer               :: itime
       integer               :: i,k,isize
       real(kind=dp)         :: Interval_Frac
+      real(kind=ip)         :: falltime
       logical               :: Load_MesoSteps
       logical               :: StopTimeLoop   = .false.
       real(kind=ip)         :: MassConsErr
@@ -404,11 +405,35 @@
       call Allocate_Output_UserVars(nxmax,nymax,nzmax,nsmax)
 
       ! Now that we have the Met grids initialized, get the state variables
-      ! interpoated on the start time
+      ! interpolated on the start time
       time           = 0.0_ip
       Load_MesoSteps = .true.
       Interval_Frac  = 0.0_8
       call MesoInterpolater(time , Load_MesoSteps , Interval_Frac)
+
+      ! Calculate the fall time of each grain size
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),5020)
+      endif;enddo
+      do isize = 1,n_gs_max
+        falltime = 0.0_ip
+        do k = nzmax,1,-1
+          if(z_cc_pd(k)+0.5_ip*dz_vec_pd(k).lt.z_cc_pd(nzmax)/ZPADDING)then
+            if(abs(vf_pd(ivent,jvent,k,isize)).gt.EPS_SMALL)then
+              falltime = falltime - dz_vec_pd(k)/vf_pd(ivent,jvent,k,isize)
+            else
+              falltime = 0.0_ip
+            endif
+          endif
+        enddo
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          if(falltime.lt.EPS_SMALL)then
+            write(outlog(io),*)isize," Tracer particle; no appreciable fall velocity."
+          else
+            write(outlog(io),5021)isize,Tephra_gsdiam(isize)*1000.0_ip,falltime
+          endif
+        endif;enddo
+      enddo
 
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
@@ -549,29 +574,29 @@
 !         Insert calls to special MesoInterpolaters subroutines here
 !
 #ifdef VARDIFF
-        do io=1,2;if(VB(io).le.verbosity_info)then    
+        do io=1,2;if(VB(io).le.verbosity_debug1)then
           write(outlog(io),*)"Calling Set_VarDiffH_Meso."
         endif;enddo
         if(useVarDiffH)     call Set_VarDiffH_Meso(Load_MesoSteps,Interval_Frac)
-        do io=1,2;if(VB(io).le.verbosity_info)then      
+        do io=1,2;if(VB(io).le.verbosity_debug1)then
           write(outlog(io),*)"Calling Set_VarDiffV_Meso."
         endif;enddo
         if(useVarDiffV)     call Set_VarDiffV_Meso(Load_MesoSteps,Interval_Frac)
 #endif
 #ifdef SRC_RESUSP
-        do io=1,2;if(VB(io).le.verbosity_info)then      
+        do io=1,2;if(VB(io).le.verbosity_debug1)then
           write(outlog(io),*)"Calling Set_Resusp_Meso."
         endif;enddo
         if(useResuspension) call Set_Resusp_Meso(Load_MesoSteps,Interval_Frac)
 #endif
 #ifdef SRC_GAS
-        do io=1,2;if(VB(io).le.verbosity_info)then      
+        do io=1,2;if(VB(io).le.verbosity_debug1)then
           write(outlog(io),*)"Calling Set_Gas_Meso."
         endif;enddo
         if(USE_GAS)          call Set_Gas_Meso(Load_MesoSteps,Interval_Frac)
 #endif
 #ifdef WETDEPO
-        do io=1,2;if(VB(io).le.verbosity_info)then      
+        do io=1,2;if(VB(io).le.verbosity_debug1)then
           write(outlog(io),*)"Calling Set_WetDepo_Meso."
         endif;enddo
         if(USE_WETDEPO)     call Set_WetDepo_Meso(Load_MesoSteps,Interval_Frac)
@@ -587,7 +612,7 @@
 !
 #ifdef SRC_RESUSP
         if(useResuspension)then
-          do io=1,2;if(VB(io).le.verbosity_info)then      
+          do io=1,2;if(VB(io).le.verbosity_debug1)then
             write(outlog(io),*)"Calling Set_Resusp_Flux."
           endif;enddo
           call Set_Resusp_Flux
@@ -600,7 +625,7 @@
 #endif
 #ifdef SRC_GAS
         if(USE_GAS)then
-          do io=1,2;if(VB(io).le.verbosity_info)then      
+          do io=1,2;if(VB(io).le.verbosity_debug1)then
             write(outlog(io),*)"Calling Set_Gas_Flux."
           endif;enddo
           call Set_Gas_Flux
@@ -666,10 +691,9 @@
 
           else
             ! This is not a standard source.
-            do io=1,2;if(VB(io).le.verbosity_info)then
-              write(outlog(io),*)"WARNING: source type is non-standard"
-            endif;enddo
-            stop 1
+            !do io=1,2;if(VB(io).le.verbosity_info)then
+            !  write(outlog(io),*)"WARNING: source type is non-standard"
+            !endif;enddo
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
 !         Insert calls to optional sources here
@@ -678,14 +702,16 @@
 !
             if (SourceType.eq.'resuspens') then
 #ifdef SRC_RESUSP
-              do io=1,2;if(VB(io).le.verbosity_info)then      
+              do io=1,2;if(VB(io).le.verbosity_debug1)then
                 write(outlog(io),*)"Calling Set_concen_Resusp."
               endif;enddo
               call Set_concen_Resusp
+            ! Keep track of the accumulated source inserted for mass conservation error-checking
+            SourceCumulativeVol = SourceCumulativeVol + SourceVolInc_Resusp(dt)
 #endif
             elseif (SourceType.eq.'gas') then
 #ifdef SRC_GAS
-              do io=1,2;if(VB(io).le.verbosity_info)then      
+              do io=1,2;if(VB(io).le.verbosity_debug1)then
                 write(outlog(io),*)"Calling Set_concen_Gas."
               endif;enddo
               call Set_concen_Gas
@@ -703,7 +729,7 @@
 !         Insert calls to optional boundary conditions here
 
 #ifdef OSCAR
-        do io=1,2;if(VB(io).le.verbosity_info)then      
+        do io=1,2;if(VB(io).le.verbosity_debug1)then
           write(outlog(io),*)"Calling set_SurfaceVelocity."
         endif;enddo
         if(useOceanCurrent) call set_SurfaceVelocity(time)
@@ -719,7 +745,7 @@
 !         Insert calls to optional advection/diffusion routines here
 !
 #ifdef OSCAR
-        do io=1,2;if(VB(io).le.verbosity_info)then      
+        do io=1,2;if(VB(io).le.verbosity_debug1)then
           write(outlog(io),*)"Calling advect_deposit."
         endif;enddo
         if(useOceanCurrent) &
@@ -743,7 +769,7 @@
 !
 #ifdef SRC_GAS
         if(USE_GAS)then
-          do io=1,2;if(VB(io).le.verbosity_info)then      
+          do io=1,2;if(VB(io).le.verbosity_debug1)then
             write(outlog(io),*)"Calling Gas_Chem_Convert."
           endif;enddo
           call Gas_Chem_Convert
@@ -752,7 +778,7 @@
 
 #ifdef WETDEPO
         if(USE_WETDEPO)then
-          do io=1,2;if(VB(io).le.verbosity_info)then      
+          do io=1,2;if(VB(io).le.verbosity_debug1)then
             write(outlog(io),*)"Calling Wet_Depo_Rainout."
           endif;enddo
           call Wet_Depo_Rainout
@@ -773,7 +799,7 @@
 !         Insert calls output routines (every timestep) here
 !
 #ifdef WETDEPO
-          do io=1,2;if(VB(io).le.verbosity_info)then      
+          do io=1,2;if(VB(io).le.verbosity_debug1)then
             write(outlog(io),*)"Calling ThicknessCalculator_WetDepo."
           endif;enddo
           if(USE_WETDEPO) call ThicknessCalculator_WetDepo
@@ -795,7 +821,7 @@
         ! DT_MIN, but may be adjusted down so as to land on the next
         ! output time.  time has already been integrated forward so
         ! NextWriteTime-time should be near zero for output steps.
-        if(Output_at_WriteTimes.and.(NextWriteTime-time.lt.DT_MIN))then
+        if(Output_at_WriteTimes.and.(abs(NextWriteTime-time).lt.DT_MIN))then
             ! Generate output variables if we haven't already
           if(.not.Called_Gen_Output_Vars)then
             call Gen_Output_Vars
@@ -805,26 +831,26 @@
 !         Insert calls output routines (every output-step) here
 !
 #ifdef WETDEPO
-          do io=1,2;if(VB(io).le.verbosity_info)then    
+          do io=1,2;if(VB(io).le.verbosity_debug1)then
             write(outlog(io),*)"Calling ThicknessCalculator_WetDepo."
           endif;enddo
           if(USE_WETDEPO) call ThicknessCalculator_WetDepo
 #endif
 #ifdef VARDIFF
-          do io=1,2;if(VB(io).le.verbosity_info)then    
+          do io=1,2;if(VB(io).le.verbosity_debug1)then
             write(outlog(io),*)"Calling Prep_output_VarDiff."
           endif;enddo
           if(useVarDiffH.or.useVarDiffV) call Prep_output_VarDiff
 #endif
 #ifdef WETDEPO
-          do io=1,2;if(VB(io).le.verbosity_info)then    
+          do io=1,2;if(VB(io).le.verbosity_debug1)then
             write(outlog(io),*)"Calling Prep_output_WetDepo."
           endif;enddo
           if(USE_WETDEPO) call Prep_output_WetDepo
 #endif
 #ifdef SRC_RESUSP
           if(SourceType.eq.'resuspens')then
-            do io=1,2;if(VB(io).le.verbosity_info)then    
+            do io=1,2;if(VB(io).le.verbosity_debug1)then
               write(outlog(io),*)"Calling Prep_output_Source_Resuspension."
             endif;enddo
             call Prep_output_Source_Resuspension
@@ -832,7 +858,7 @@
 #endif
 #ifdef SRC_GAS
           if(SourceType.eq.'gas')then
-            do io=1,2;if(VB(io).le.verbosity_info)then    
+            do io=1,2;if(VB(io).le.verbosity_debug1)then
               write(outlog(io),*)"Calling Prep_output_Source_Gas."
             endif;enddo
             call Prep_output_Source_Gas
@@ -859,7 +885,7 @@
 !         Insert calls output routines (every log-step) here
 !
 #ifdef WETDEPO
-              do io=1,2;if(VB(io).le.verbosity_info)then    
+              do io=1,2;if(VB(io).le.verbosity_debug1)then
                 write(outlog(io),*)"Calling ThicknessCalculator_WetDepo."
               endif;enddo
               if(USE_WETDEPO) call ThicknessCalculator_WetDepo
@@ -875,7 +901,7 @@
             if(.not.Called_Gen_Output_Vars)then
               call Gen_Output_Vars
 #ifdef WETDEPO
-              do io=1,2;if(VB(io).le.verbosity_info)then    
+              do io=1,2;if(VB(io).le.verbosity_debug1)then
                 write(outlog(io),*)"Calling ThicknessCalculator_WetDepo."
               endif;enddo
               if(USE_WETDEPO) call ThicknessCalculator_WetDepo
@@ -1066,6 +1092,10 @@
 5009  format(/,5x,'Maximum deposit thickness (mm)   = ',f10.4, &
              /,5x,'Area covered by >0.01 mm (km2)   = ',f10.1,/)
 5012  format(4x,'*=files written out')
+
+5020  format('Calculating fall time from plume top',/,&
+              5x,'GS index',5x,'diam (mm)',5x,'fall time (hours)')
+5021  format(5x,i4,7x,f8.3,10x,f15.1)
 
 5033  format(/,5x,'Normal completion')
 5034  format(/,'  Ash load   cloud area',/, &

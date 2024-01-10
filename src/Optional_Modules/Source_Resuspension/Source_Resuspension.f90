@@ -145,7 +145,7 @@
       !                v   v  v    v    v
       ! 0 0 0 0.0   35.0 5.0  2  0.5   6.0e-8
 
-      read(linebuffer120,*,err=1910) iyear,imonth,iday,hour, &
+      read(linebuffer080,*,err=1910) iyear,imonth,iday,hour, &
                             e_Duration(1),e_PlumeHeight(1),&
                             FvID,u_star_thresh,Fv_coeff
       read(10,'(a130)')linebuffer130
@@ -419,7 +419,7 @@
 
       integer :: i,j
 
-      ! Test for existance of the deposit file
+      ! Test for existence of the deposit file
       inquire( file=adjustl(trim(DepPerimInfile)), exist=IsThere )
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)&
@@ -703,7 +703,69 @@
 
       end subroutine Set_concen_Resusp
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+!  SourceVolInc_Resusp(dt)
+!
+!  Called from: Ash3d_res.F90
+!  Arguments:
+!    dt = time step in hours
+!
+!  This function calculates the total tephra volume inserted in this time step.
+!  It is used only for mass-conservation error-checking.  It is similar to
+!  SourceVolInc but act on an area source.
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      function SourceVolInc_Resusp(dt)
+
+      use global_param,  only : &
+         KM3_2_M3
+
+      use mesh,          only : &
+         kappa_pd,nxmax,nymax
+
+
+      use Tephra,        only : &
+         n_gs_max,MagmaDensity
+
+      use Source,        only : &
+         SourceNodeFlux_Area
+
+      real(kind=ip) :: SourceVolInc_Resusp
+      real(kind=dp) :: dt
+
+      real(kind=ip) :: tmp
+      integer :: i,j,ii,jj,k,isize
+
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*)"     Entered Subroutine SourceVolInc_Resusp"
+      endif;enddo
+
+      tmp = 0.0_ip
+
+      do isize=1,n_gs_max
+        do i = 1,nxmax
+          do j = 1,nymax
+            k = 1
+            tmp = tmp                             + & ! final units is km3
+                  real(dt,kind=ip)                * & ! hr
+                  SourceNodeFlux_Area(i,j,isize)  / & ! kg/km3 hr
+                  kappa_pd(i,j,1)                 / & ! km3
+                  MagmaDensity                    / & ! kg/m3
+                  KM3_2_M3                            ! m3/km3
+          enddo
+        enddo
+      enddo
+
+      SourceVolInc_Resusp = tmp
+
+      return
+
+      end function SourceVolInc_Resusp
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
       function IsIn(testpoint,Num_Vert,VertPos,Num_Elem,Elem)
         !  This function returns true if testpoint is
         !  located within the Particle Object.

@@ -385,7 +385,6 @@
         start_lat_idx = int((minlat_Topo+90.0_ip)/dlon)
         start_lat_idx = nlat_tot-start_lat_idx
       endif
-
       nlon = int((maxlon_Topo-minlon_Topo)/dlon) + 4
       nlat = int((maxlat_Topo-minlat_Topo)/dlat) + 4
       allocate(lon_raw(nlon))
@@ -456,7 +455,6 @@
             topo_raw(end_lon_idx+1:nlon,ilat) = real(dum1d_short(1:nlon-end_lon_idx),kind=ip)
           endif
         enddo
-
         deallocate(dum1d_short)
       else
         do io=1,2;if(VB(io).le.verbosity_error)then

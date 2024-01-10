@@ -529,7 +529,7 @@
 
       use netcdf
 
-      use ieee_arithmetic
+!      use ieee_arithmetic
 
       implicit none
 
@@ -619,7 +619,8 @@
       !              intpol2,w2_sp,lw2,  iw2,liw2,ier2)
       do i = 1,nxmax
         do j = 1,nymax
-          if(ieee_is_nan(tmp_regrid2d_sp(i,j)))tmp_regrid2d_sp(i,j)=0.0_sp
+          if(isnan(tmp_regrid2d_sp(i,j)))tmp_regrid2d_sp(i,j)=0.0_sp
+          !if(ieee_is_nan(tmp_regrid2d_sp(i,j)))tmp_regrid2d_sp(i,j)=0.0_sp
         enddo
       enddo
       if(OSCAR_toggle.eq.1)then
@@ -640,7 +641,8 @@
       !              intpol2,w2_sp,lw2,  iw2,liw2,ier2)
       do i = 1,nxmax
         do j = 1,nymax
-          if(ieee_is_nan(tmp_regrid2d_sp(i,j)))tmp_regrid2d_sp(i,j)=0.0_sp
+          if(isnan(tmp_regrid2d_sp(i,j)))tmp_regrid2d_sp(i,j)=0.0_sp
+          !if(ieee_is_nan(tmp_regrid2d_sp(i,j)))tmp_regrid2d_sp(i,j)=0.0_sp
         enddo
       enddo
       if(OSCAR_toggle.eq.1)then
