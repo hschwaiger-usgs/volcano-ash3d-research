@@ -932,6 +932,8 @@
         StopConditions(3) = (n_gs_aloft.eq.0)
         if(SourceCumulativeVol.gt.EPS_TINY)then
           MassConsErr = abs(SourceCumulativeVol-tot_vol)/SourceCumulativeVol
+        else
+          MassConsErr = 0.0_ip
         endif
            ! Error stop condition if the concen and outflow do not match the source,
            ! but only trigger this condition if not a restart case (until outflow is tracked)

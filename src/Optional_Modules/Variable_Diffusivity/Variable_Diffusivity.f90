@@ -447,7 +447,7 @@
       E12=du_dy_MetP_sp(i,j,k)
       E21=dv_dx_MetP_sp(i,j,k)
       E22=dv_dy_MetP_sp(i,j,k)
-!
+
       D2_strain  = (E12+E21)**2.0_ip
       D2_tension = (E11-E22)**2.0_ip
 
@@ -521,7 +521,7 @@
             ! Determine which form of Kz based on height relative to
             ! atmospheric boundary layer
             if(z_col(k).le.0.0_sp)then
-                ! If point is at a nengative gpm, then assign the kz from the
+                ! If point is at a negative gpm, then assign the kz from the
                 ! node above
               Kz_tmp = Kv_col(k+1)
             elseif(z_col(k)*KM_2_M.lt.PBLz)then
@@ -587,6 +587,7 @@
       use MetReader,     only : &
          MR_dum3d_compH,MR_vx_metP_last,MR_dum3d_metP,MR_dum3d2_metP,MR_iMetStep_Now,&
          MR_vy_metP_last,MR_vy_metP_next,MR_vx_metP_next,&
+         nx_submet,ny_submet,&
            MR_DelMetP_Dx,&
            MR_DelMetP_Dy,&
            MR_Regrid_MetP_to_CompH
@@ -597,6 +598,9 @@
       real(kind=ip),intent(in) :: Interval_Frac
 
       logical,save :: first_time = .true.
+
+
+      integer :: i
 
       if(Load_MesoSteps)then
         if(first_time)then
@@ -614,6 +618,10 @@
           du_dx_MetP_sp = MR_dum3d2_metP
           call MR_DelMetP_Dy
           du_dy_MetP_sp = MR_dum3d2_metP
+          !do i=1,nx_submet
+          !  write(*,*)du_dx_MetP_sp(i,3,3),du_dy_MetP_sp(i,3,3)
+          !enddo
+          !stop 8
           ! Load V winds on MetP
           !ivar = 3 ! V winds
           !call MR_Read_3d_MetP_Variable(ivar,MR_iMetStep_Now)

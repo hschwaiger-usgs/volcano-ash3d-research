@@ -87,15 +87,18 @@
       integer :: ios !,ioerr
       character(len=20) :: mod_name
       integer :: substr_pos
+      integer,dimension(3) :: idx
       integer         :: iyear  ! time data read from files
       integer         :: imonth
       integer         :: iday
       real(kind=ip)   :: hour   ! Start time of eruption in
 
-      ! First check if the requested soure belongs to this module
-      if ((SourceType.eq.'resuspens').or. &
-          (SourceType.eq.'Resuspens').or. &
-          (SourceType.eq.'RESUSPENS')) then
+      ! First check if the requested source belongs to this module
+
+      idx(1) = index(SourceType,'resus')
+      idx(2) = index(SourceType,'Resus')
+      idx(3) = index(SourceType,'RESUS')
+      if (sum(idx(1:3)).gt.0)then
         SourceType='resuspens'
         useResuspension = .true.
       else
