@@ -7,7 +7,7 @@
       ! Set the number of output variables for this module
       integer, parameter :: nvar_User2d_static_XY_SrcResusp = 1 ! DepositMask
       integer, parameter :: nvar_User2d_XY_SrcResusp        = 1 ! FricVel
-      integer, parameter :: nvar_User3d_XYGs_SrcResusp      = 0
+      integer, parameter :: nvar_User3d_XYGs_SrcResusp      = 1 ! SourceNodeFlux_Area
       integer, parameter :: nvar_User3d_XYZ_SrcResusp       = 0
       integer, parameter :: nvar_User4d_XYZGs_SrcResusp     = 0
 
@@ -22,6 +22,12 @@
       character(len=30),dimension(nvar_User2d_XY_SrcResusp) :: temp_2d_lname_SrcResusp
       real(kind=op),    dimension(nvar_User2d_XY_SrcResusp) :: temp_2d_MissVal_SrcResusp
       real(kind=op),    dimension(nvar_User2d_XY_SrcResusp) :: temp_2d_FillVal_SrcResusp
+
+      character(len=30),dimension(nvar_User3d_XYGs_SrcResusp)  :: temp_3ds_name_SrcResusp
+      character(len=30),dimension(nvar_User3d_XYGs_SrcResusp)  :: temp_3ds_unit_SrcResusp
+      character(len=30),dimension(nvar_User3d_XYGs_SrcResusp)  :: temp_3ds_lname_SrcResusp
+      real(kind=op),    dimension(nvar_User3d_XYGs_SrcResusp)  :: temp_3ds_MissVal_SrcResusp
+      real(kind=op),    dimension(nvar_User3d_XYGs_SrcResusp)  :: temp_3ds_FillVal_SrcResusp
 
       ! These are used to keep track of which index in the global list, this
       ! modules output vars corespond to
@@ -306,6 +312,13 @@
       temp_2d_MissVal_SrcResusp(1) = -9999.0_op
       temp_2d_FillVal_SrcResusp(1) = -9999.0_op
 
+      ! SourceNodeFlux_Area
+      temp_3ds_name_SrcResusp(1)    = "FluxVert"
+      temp_3ds_lname_SrcResusp(1)   = "SourceNodeFlux_Area"
+      temp_3ds_unit_SrcResusp(1)    = "kg/km3/hour"
+      temp_3ds_MissVal_SrcResusp(1) = -9999.0_op
+      temp_3ds_FillVal_SrcResusp(1) = -9999.0_op
+
       nvar_User2d_static_XY = nvar_User2d_static_XY + nvar_User2d_static_XY_SrcResusp
       nvar_User2d_XY        = nvar_User2d_XY        + nvar_User2d_XY_SrcResusp
       nvar_User3d_XYGs      = nvar_User3d_XYGs      + nvar_User3d_XYGs_SrcResusp
@@ -327,15 +340,21 @@
 
       subroutine Prep_output_Source_Resuspension
 
+      use Source,        only : &
+         SourceNodeFlux_Area
+
       use Variable_Diffusivity, only : &
          FricVel_ip
 
       use Output_Vars,   only : &
-         var_User2d_XY_name,var_User2d_XY_unit,var_User2d_XY_lname,&
-         var_User2d_XY_MissVal,var_User2d_XY_FillVal,var_User2d_XY,&
          var_User2d_static_XY_name,var_User2d_static_XY_unit,&
          var_User2d_static_XY_lname,var_User2d_static_XY_MissVal,&
-         var_User2d_static_XY_FillVal,var_User2d_static_XY
+         var_User2d_static_XY_FillVal,var_User2d_static_XY, &
+         var_User2d_XY_name,var_User2d_XY_unit,var_User2d_XY_lname,&
+         var_User2d_XY_MissVal,var_User2d_XY_FillVal,var_User2d_XY,&
+         var_User3d_XYGs_name,var_User3d_XYGs_unit,&
+         var_User3d_XYGs_lname,var_User3d_XYGs_MissVal,&
+         var_User3d_XYGs_FillVal,var_User3d_XYGs
 
       implicit none
 
@@ -359,6 +378,16 @@
         var_User2d_XY_MissVal(indx)= temp_2d_MissVal_SrcResusp(i)
         var_User2d_XY_FillVal(indx)= temp_2d_FillVal_SrcResusp(i)
         if(i.eq.1)var_User2d_XY(:,:,indx) = real(FricVel_ip(:,:),kind=op)
+      enddo
+
+      do i=1,nvar_User3d_XYGs_SrcResusp
+        indx = indx_User3d_XYGs_SrcResusp+i
+        var_User3d_XYGs_name(indx) = temp_3ds_name_SrcResusp(i)
+        var_User3d_XYGs_unit(indx) = temp_3ds_unit_SrcResusp(i)
+        var_User3d_XYGs_lname(indx)= temp_3ds_lname_SrcResusp(i)
+        var_User3d_XYGs_MissVal(indx)= temp_3ds_MissVal_SrcResusp(i)
+        var_User3d_XYGs_FillVal(indx)= temp_3ds_FillVal_SrcResusp(i)
+        if(i.eq.1)var_User3d_XYGs(:,:,:,indx) = real(SourceNodeFlux_Area(:,:,:),kind=op)
       enddo
 
       end subroutine Prep_output_Source_Resuspension

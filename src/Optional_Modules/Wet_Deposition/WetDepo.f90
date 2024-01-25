@@ -62,6 +62,13 @@
       integer, parameter :: nvar_User3d_XYZ_WetDepo       = 1 ! precip
       integer, parameter :: nvar_User4d_XYZGs_WetDepo     = 1 ! ScavCo_liq,ScavCo_ice
 
+      ! HFS : 2ds should mean x,y,gs not x,y static
+      !character(len=30),dimension(nvar_User2d_static_XY_WetDepo) :: temp_2d_static_name_WetDepo
+      !character(len=30),dimension(nvar_User2d_static_XY_WetDepo) :: temp_2d_static_unit_WetDepo
+      !character(len=30),dimension(nvar_User2d_static_XY_WetDepo) :: temp_2d_static_lname_WetDepo
+      !real(kind=op),    dimension(nvar_User2d_static_XY_WetDepo) :: temp_2d_static_MissVal_WetDepo
+      !real(kind=op),    dimension(nvar_User2d_static_XY_WetDepo) :: temp_2d_static_FillVal_WetDepo
+
       character(len=30),dimension(nvar_User2d_static_XY_WetDepo) :: temp_2ds_name_WetDepo
       character(len=30),dimension(nvar_User2d_static_XY_WetDepo) :: temp_2ds_unit_WetDepo
       character(len=30),dimension(nvar_User2d_static_XY_WetDepo) :: temp_2ds_lname_WetDepo

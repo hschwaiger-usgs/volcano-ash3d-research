@@ -21,10 +21,16 @@
 
       ! Set the number of output variables for this module
       integer, parameter :: nvar_User2d_static_XY_VarDiff = 0
-      integer, parameter :: nvar_User2d_XY_VarDiff        = 0
+      integer, parameter :: nvar_User2d_XY_VarDiff        = 1 ! Pbl
       integer, parameter :: nvar_User3d_XYGs_VarDiff      = 0
-      integer, parameter :: nvar_User3d_XYZ_VarDiff       = 2 ! khorz, kvert
+      integer, parameter :: nvar_User3d_XYZ_VarDiff       = 3 ! khorz, kvert, Ri
       integer, parameter :: nvar_User4d_XYZGs_VarDiff     = 0
+
+      character(len=30),dimension(nvar_User2d_XY_VarDiff) :: temp_2d_name_VarDiff
+      character(len=30),dimension(nvar_User2d_XY_VarDiff) :: temp_2d_unit_VarDiff
+      character(len=30),dimension(nvar_User2d_XY_VarDiff) :: temp_2d_lname_VarDiff
+      real(kind=op),    dimension(nvar_User2d_XY_VarDiff) :: temp_2d_MissVal_VarDiff
+      real(kind=op),    dimension(nvar_User2d_XY_VarDiff) :: temp_2d_FillVal_VarDiff
 
       character(len=30),dimension(nvar_User3d_XYZ_VarDiff) :: temp_3d_name_VarDiff
       character(len=30),dimension(nvar_User3d_XYZ_VarDiff) :: temp_3d_unit_VarDiff
@@ -318,6 +324,12 @@
       indx_User3d_XYZ_VarDiff       = nvar_User3d_XYZ
       indx_User4d_XYZGs_VarDiff     = nvar_User4d_XYZGs
 
+      temp_2d_name_VarDiff(1) = "PBL"
+      temp_2d_lname_VarDiff(1) = "Planetary Boundary Layer"
+      temp_2d_unit_VarDiff(1) = "km"
+      temp_2d_MissVal_VarDiff(1) = -9999.0_op
+      temp_2d_FillVal_VarDiff(1) = -9999.0_op
+
       temp_3d_name_VarDiff(1) = "Kh"
       temp_3d_lname_VarDiff(1) = "Diffusivity_Horizontal"
       temp_3d_unit_VarDiff(1) = "m2/s"
@@ -329,6 +341,12 @@
       temp_3d_unit_VarDiff(2) = "m2/s"
       temp_3d_MissVal_VarDiff(2) = -9999.0_op
       temp_3d_FillVal_VarDiff(2) = -9999.0_op
+
+      temp_3d_name_VarDiff(3) = "Ri"
+      temp_3d_lname_VarDiff(3) = "Gradient_Richardson_Number"
+      temp_3d_unit_VarDiff(3) = "none"
+      temp_3d_MissVal_VarDiff(3) = -9999.0_op
+      temp_3d_FillVal_VarDiff(3) = -9999.0_op
 
       nvar_User2d_static_XY = nvar_User2d_static_XY + nvar_User2d_static_XY_VarDiff
       nvar_User2d_XY        = nvar_User2d_XY        + nvar_User2d_XY_VarDiff
@@ -351,14 +369,36 @@
          kx,kz
 
       use Output_Vars,   only : &
+         var_User2d_XY_name,var_User2d_XY_unit,var_User2d_XY_lname,&
+         var_User2d_XY_MissVal,var_User2d_XY_FillVal,var_User2d_XY, &
          var_User3d_XYZ_name,var_User3d_XYZ_unit,var_User3d_XYZ_lname,&
          var_User3d_XYZ_MissVal,var_User3d_XYZ_FillVal,var_User3d_XYZ
+
+      use MetReader,     only : &
+         MR_dum2d_met,MR_dum2d_comp,MR_dum3d_compH,MR_dum3d_metP,MR_iMetStep_Now,&
+           MR_Regrid_MetP_to_CompH,&
+           MR_Regrid_Met2d_to_Comp2D
 
       implicit none
 
       integer :: i,indx
 
       ! Might have to build in some logic for Kh vs Kz
+
+      do i=1,nvar_User2d_XY_VarDiff
+        indx = indx_User2d_XY_VarDiff+i
+        var_User2d_XY_name(indx)   = temp_2d_name_VarDiff(i)
+        var_User2d_XY_unit(indx)   = temp_2d_unit_VarDiff(i)
+        var_User2d_XY_lname(indx)  = temp_2d_lname_VarDiff(i)
+        var_User2d_XY_MissVal(indx)= temp_2d_MissVal_VarDiff(i)
+        var_User2d_XY_FillVal(indx)= temp_2d_FillVal_VarDiff(i)
+        if(i.eq.1)then
+           ! Now resample onto computational grid
+          MR_dum2d_met = PBLH_meso_next_step_Met_sp
+          call MR_Regrid_Met2d_to_Comp2D
+          var_User2d_XY(1:nxmax,1:nymax,indx) = MR_dum2d_comp(1:nxmax,1:nymax)
+        endif
+      enddo
 
       do i=1,nvar_User3d_XYZ_VarDiff
         indx = indx_User3d_XYZ_VarDiff+i
@@ -369,6 +409,12 @@
         var_User3d_XYZ_FillVal(indx)= temp_3d_FillVal_VarDiff(i)
         if(i.eq.1) var_User3d_XYZ(1:nxmax,1:nymax,1:nzmax,indx) = kx(1:nxmax,1:nymax,1:nzmax)
         if(i.eq.2) var_User3d_XYZ(1:nxmax,1:nymax,1:nzmax,indx) = kz(1:nxmax,1:nymax,1:nzmax)
+        if(i.eq.3)then
+           ! Now resample onto computational grid
+          MR_dum3d_metP = Ri_meso_next_step_MetP_sp
+          call MR_Regrid_MetP_to_CompH(MR_iMetStep_Now)
+          var_User3d_XYZ(1:nxmax,1:nymax,1:nzmax,indx) = MR_dum3d_compH(1:nxmax,1:nymax,1:nzmax)
+        endif
       enddo
 
       end subroutine Prep_output_VarDiff
@@ -796,7 +842,7 @@
                                               Interval_Frac
       kz = kz * 3600.0_ip
       !HFS KLUDGE
-      kz = 5.0_ip
+      !kz = 5.0_ip
 
       ! Set boundary kz
         ! Bottom
@@ -821,7 +867,7 @@
       subroutine Calc_Ri(last_or_next)
 
       use global_param,  only : &
-         GRAV,KM_2_M,MPS_2_KMPHR,useMoistureVars,EPS_SMALL
+         GRAV,KM_2_M,useMoistureVars,EPS_SMALL
 
       use Atmosphere,    only : &
          AirSH_meso_last_step_MetP_sp,AirSH_meso_next_step_MetP_sp,&
@@ -832,24 +878,27 @@
          nx_submet,ny_submet,np_fullmet,p_fullmet_sp,&
          MR_geoH_metP_last,MR_geoH_MetP_next
 
+      use mesh,          only : &
+         x_cc_pd,y_cc_pd
+
       implicit none
 
       integer, intent(in) :: last_or_next
 
-      real(kind=ip),dimension(:),allocatable :: z
-      real(kind=ip),dimension(:),allocatable :: u
-      real(kind=ip),dimension(:),allocatable :: v
-      real(kind=ip),dimension(:),allocatable :: p
-      real(kind=ip),dimension(:),allocatable :: T
-      real(kind=ip),dimension(:),allocatable :: Q
-      !real(kind=sp) :: dv_dz(np_fullmet)
+      real(kind=ip),dimension(:),allocatable :: z ! in m
+      real(kind=ip),dimension(:),allocatable :: u ! in m/s
+      real(kind=ip),dimension(:),allocatable :: v ! in m/s
+      real(kind=ip),dimension(:),allocatable :: p ! in Pa
+      real(kind=ip),dimension(:),allocatable :: T ! in K
+      real(kind=ip),dimension(:),allocatable :: Q ! in kg/kg
+      real(kind=ip),dimension(:),allocatable :: Tpoten
 
-      integer :: i,j,k
+      integer :: i,j,k,k1,k2
       real(kind=ip) :: refP
       real(kind=ip) :: del_z
-      real(kind=ip) :: ptemp1,ptemp2,ptemp,delptemp
-      real(kind=ip) :: u1,u2,dv1
+      real(kind=ip) :: dudz,dvdz,dtdz
       real(kind=ip) :: temp_term,mech_term
+      real(kind=ip) :: Ri
 
       allocate(z(np_fullmet))
       allocate(u(np_fullmet))
@@ -857,91 +906,72 @@
       allocate(p(np_fullmet))
       allocate(T(np_fullmet))
       allocate(Q(np_fullmet))
-
+      allocate(Tpoten(np_fullmet))
 
       refP = 1.0e5_ip   ! reference pressure for potential temperature
 
-      p = p_fullmet_sp
+      p(1:np_fullmet) = p_fullmet_sp(1:np_fullmet)
       do i=1,nx_submet
         do j=1,ny_submet
           if(last_or_next.eq.0)then
-            z = MR_geoH_metP_last(i,j,1:np_fullmet) * KM_2_M
-            u = vx_meso_last_step_MetP_sp(i,j,1:np_fullmet)/MPS_2_KMPHR
-            v = vy_meso_last_step_MetP_sp(i,j,1:np_fullmet)/MPS_2_KMPHR
-            T = AirTemp_meso_last_step_MetP_sp(i,j,1:np_fullmet)
+            z(1:np_fullmet) = MR_geoH_metP_last(i,j,1:np_fullmet) * KM_2_M
+            u(1:np_fullmet) = vx_meso_last_step_MetP_sp(i,j,1:np_fullmet)
+            v(1:np_fullmet) = vy_meso_last_step_MetP_sp(i,j,1:np_fullmet)
+            T(1:np_fullmet) = AirTemp_meso_last_step_MetP_sp(i,j,1:np_fullmet)
             if(useMoistureVars)then
                 ! If moisture is enabled, use virtual potential temperatrue
-              Q = AirSH_meso_last_step_MetP_sp(i,j,:)
+              Q(1:np_fullmet) = AirSH_meso_last_step_MetP_sp(i,j,1:np_fullmet)
             else
                 ! Otherwise, we will just use potential temperature
-              Q = 0.0_ip
+              Q(1:np_fullmet) = 0.0_ip
             endif
           else
-            z = MR_geoH_MetP_next(i,j,1:np_fullmet) * KM_2_M
-            u = vx_meso_next_step_MetP_sp(i,j,1:np_fullmet)/MPS_2_KMPHR
-            v = vy_meso_next_step_MetP_sp(i,j,1:np_fullmet)/MPS_2_KMPHR
-            T = AirTemp_meso_next_step_MetP_sp(i,j,1:np_fullmet)
+            z(1:np_fullmet) = MR_geoH_MetP_next(i,j,1:np_fullmet) * KM_2_M
+            u(1:np_fullmet) = vx_meso_next_step_MetP_sp(i,j,1:np_fullmet)
+            v(1:np_fullmet) = vy_meso_next_step_MetP_sp(i,j,1:np_fullmet)
+            T(1:np_fullmet) = AirTemp_meso_next_step_MetP_sp(i,j,1:np_fullmet)
             if(useMoistureVars)then
-              Q = AirSH_meso_next_step_MetP_sp(i,j,1:np_fullmet)
+              Q(1:np_fullmet) = AirSH_meso_next_step_MetP_sp(i,j,1:np_fullmet)
             else
-              Q = 0.0_ip
+              Q(1:np_fullmet) = 0.0_ip
             endif
           endif
+          do k=1,np_fullmet
+            Tpoten(k) = (T(k)*(refP/p(k))**(R_GAS_DRYAIR/CP_AIR))*(1.0_ip + 0.608_ip*Q(k))
+          enddo
 
           do k=1,np_fullmet
             ! We need vertical derivatives of theta_v and u
-            !  Use one-sided differences at the top and bottom, two-sided
-            !  elsewhere
-            If(k.eq.1)then
-              del_z  = (z(k+1)- z(k))
-              ptemp1 = T(k)*(refP/p(k))**(R_GAS_DRYAIR/CP_AIR)
-              ptemp1 = ptemp1 * (1.0_ip + 0.608_ip*Q(k))
-              ptemp2 = T(k+1)*(refP/p(k+1))**(R_GAS_DRYAIR/CP_AIR)
-              ptemp2 = ptemp2 * (1.0_ip + 0.608_ip*Q(k+1))
-              ptemp  = 0.5_ip*(ptemp1+ptemp2)
-              u1     = sqrt(u(k  )*u(k  ) + v(k  )*v(k  ))
-              u2     = sqrt(u(k+1)*u(k+1) + v(k+1)*v(k+1))
-              dv1    = u2-u1
+            !  Use one-sided differences
+            if(k.lt.np_fullmet)then
+              k1 = k
+              k2 = k+1
             elseif(k.eq.np_fullmet)then
-              del_z  = (z(k  )- z(k-1))
-              ptemp1 = T(k-1)*(refP/p(k-1))**(R_GAS_DRYAIR/CP_AIR)
-              ptemp1 = ptemp1 * (1.0_ip + 0.608_ip*Q(k-1))
-              ptemp2 = T(k  )*(refP/p(k  ))**(R_GAS_DRYAIR/CP_AIR)
-              ptemp2 = ptemp2 * (1.0_ip + 0.608_ip*Q(k))
-              ptemp  = 0.5_ip*(ptemp1+ptemp2)
-              u1     = sqrt(u(k-1)*u(k-1) + v(k-1)*v(k-1))
-              u2     = sqrt(u(k  )*u(k  ) + v(k  )*v(k  ))
-              dv1    = u2-u1
-            else
-              del_z  = (z(k+1)- z(k-1))
-              ptemp1 = T(k-1)*(refP/p(k-1))**(R_GAS_DRYAIR/CP_AIR)
-              ptemp1 = ptemp1 * (1.0_ip + 0.608_ip*Q(k-1))
-              ptemp2 = T(k+1)*(refP/p(k+1))**(R_GAS_DRYAIR/CP_AIR)
-              ptemp2 = ptemp2 * (1.0_ip + 0.608_ip*Q(k+1))
-              ptemp  = 0.5_ip*(ptemp1+ptemp2)
-              u1     = sqrt(u(k-1)*u(k-1) + v(k-1)*v(k-1))
-              u2     = sqrt(u(k+1)*u(k+1) + v(k+1)*v(k+1))
-              dv1    = u2-u1
+              k1 = k-1
+              k2 = k
             endif
-            if(abs(dv1).lt.EPS_SMALL) dv1=EPS_SMALL
-  
-            delptemp = ptemp2-ptemp1
-            temp_term = (1.0_ip/ptemp)*(delptemp/del_z)
-            dV_dz_MetP_sp(i,j,k) = real(dv1/del_z,kind=sp)
+            del_z  = z(k2)- z(k1)
+            dtdz   = (Tpoten(k2)-Tpoten(k1)) / del_z
+            dudz   = (u(k2)-u(k1)) / del_z
+            dvdz   = (v(k2)-v(k1)) / del_z
+
+            temp_term = dtdz/Tpoten(k)
+            dV_dz_MetP_sp(i,j,k) = real(max(dudz*dudz+dvdz*dvdz,EPS_SMALL),kind=sp)
             ! When comparing the Ri calculation below with that from
             ! MERRA, it seems that the magnitude of dv_dz is at least
             ! 3.0e-3 m/s.  Smaller values cause Ri to become singular.
             ! In fact, they may assume a dv_dz = 3.0e-3 m/s
-            mech_term = max(real(dV_dz_MetP_sp(i,j,k),kind=ip),3.0e-3_ip)**2.0_ip / &
-                            GRAV
+            mech_term = max(real(dV_dz_MetP_sp(i,j,k),kind=ip),3.0e-3_ip)/GRAV
+            Ri = real(temp_term / mech_term,kind=sp)
             if(last_or_next.eq.0)then
-              Ri_meso_last_step_MetP_sp(i,j,k) = real(temp_term / mech_term,kind=sp)
+              Ri_meso_last_step_MetP_sp(i,j,k) = Ri
             else
-              Ri_meso_next_step_MetP_sp(i,j,k) = real(temp_term / mech_term,kind=sp)
+              Ri_meso_next_step_MetP_sp(i,j,k) = Ri
             endif
-          enddo
-        enddo
-      enddo
+
+          enddo ! k
+        enddo ! j
+      enddo ! i
 
       end subroutine Calc_Ri
 
