@@ -878,9 +878,6 @@
          nx_submet,ny_submet,np_fullmet,p_fullmet_sp,&
          MR_geoH_metP_last,MR_geoH_MetP_next
 
-      use mesh,          only : &
-         x_cc_pd,y_cc_pd
-
       implicit none
 
       integer, intent(in) :: last_or_next

@@ -298,7 +298,7 @@
       indx_User3d_XYZ_SrcResusp       = nvar_User3d_XYZ
       indx_User4d_XYZGs_SrcResusp     = nvar_User4d_XYZGs
 
-      ! Deposite Mask
+      ! Deposit Mask
       temp_2ds_name_SrcResusp(1)    = "DepoMask"
       temp_2ds_lname_SrcResusp(1)   = "Source region"
       temp_2ds_unit_SrcResusp(1)    = "flag"
@@ -324,21 +324,22 @@
       nvar_User3d_XYGs      = nvar_User3d_XYGs      + nvar_User3d_XYGs_SrcResusp
       nvar_User3d_XYZ       = nvar_User3d_XYZ       + nvar_User3d_XYZ_SrcResusp
       nvar_User4d_XYZGs     = nvar_User4d_XYZGs     + nvar_User4d_XYZGs_SrcResusp
-
       allocate(DepositMask(nxmax,nymax))
 
-      allocate(SnD_meso_last_step_sp(nxmax,nymax))
-      allocate(SnD_meso_next_step_sp(nxmax,nymax))
-      allocate(P0_meso_last_step_sp(nxmax,nymax))
-      allocate(P0_meso_next_step_sp(nxmax,nymax))
-
-      allocate(SourceNodeFlux_Area(1:nxmax,1:nymax,1:nsmax))
+      allocate(SnD_meso_last_step_sp(nxmax,nymax));           SnD_meso_last_step_sp = 0.0_sp
+      allocate(SnD_meso_next_step_sp(nxmax,nymax));           SnD_meso_next_step_sp = 0.0_sp
+      allocate(P0_meso_last_step_sp(nxmax,nymax));            P0_meso_last_step_sp  = 0.0_sp
+      allocate(P0_meso_next_step_sp(nxmax,nymax));            P0_meso_next_step_sp  = 0.0_sp
+      allocate(SourceNodeFlux_Area(1:nxmax,1:nymax,1:nsmax)); SourceNodeFlux_Area   = 0.0_ip
 
       end subroutine Allocate_Source_Resuspension
 
 !******************************************************************************
 
       subroutine Prep_output_Source_Resuspension
+
+      use mesh,           only : &
+         nxmax,nymax,nzmax,nsmax
 
       use Source,        only : &
          SourceNodeFlux_Area
@@ -360,35 +361,43 @@
 
       integer :: i,indx
 
-      do i=1,nvar_User2d_static_XY_SrcResusp
-        indx = indx_User2d_static_XY_SrcResusp+i
-        var_User2d_static_XY_name(indx) = temp_2ds_name_SrcResusp(i)
-        var_User2d_static_XY_unit(indx) = temp_2ds_unit_SrcResusp(i)
-        var_User2d_static_XY_lname(indx)= temp_2ds_lname_SrcResusp(i)
-        var_User2d_static_XY_MissVal(indx)= temp_2ds_MissVal_SrcResusp(i)
-        var_User2d_static_XY_FillVal(indx)= temp_2ds_FillVal_SrcResusp(i)
-        if(i.eq.1)var_User2d_static_XY(:,:,indx) = DepositMask
-      enddo
+      if(nvar_User2d_static_XY_SrcResusp.gt.0)then
+        do i=1,nvar_User2d_static_XY_SrcResusp
+          indx = indx_User2d_static_XY_SrcResusp+i
+          var_User2d_static_XY_name(indx) = temp_2ds_name_SrcResusp(i)
+          var_User2d_static_XY_unit(indx) = temp_2ds_unit_SrcResusp(i)
+          var_User2d_static_XY_lname(indx)= temp_2ds_lname_SrcResusp(i)
+          var_User2d_static_XY_MissVal(indx)= temp_2ds_MissVal_SrcResusp(i)
+          var_User2d_static_XY_FillVal(indx)= temp_2ds_FillVal_SrcResusp(i)
+          if(i.eq.1)var_User2d_static_XY(:,:,indx) = DepositMask
+        enddo
+      endif
+  
+      if(nvar_User2d_XY_SrcResusp.gt.0)then
+        do i=1,nvar_User2d_XY_SrcResusp
+          indx = indx_User2d_XY_SrcResusp+i
+          var_User2d_XY_name(indx) = temp_2d_name_SrcResusp(i)
+          var_User2d_XY_unit(indx) = temp_2d_unit_SrcResusp(i)
+          var_User2d_XY_lname(indx)= temp_2d_lname_SrcResusp(i)
+          var_User2d_XY_MissVal(indx)= temp_2d_MissVal_SrcResusp(i)
+          var_User2d_XY_FillVal(indx)= temp_2d_FillVal_SrcResusp(i)
+          if(i.eq.1)var_User2d_XY(1:nxmax,1:nymax,indx) = real(FricVel_ip(1:nxmax,1:nymax),kind=op)
+        enddo
+      endif
 
-      do i=1,nvar_User2d_XY_SrcResusp
-        indx = indx_User2d_XY_SrcResusp+i
-        var_User2d_XY_name(indx) = temp_2d_name_SrcResusp(i)
-        var_User2d_XY_unit(indx) = temp_2d_unit_SrcResusp(i)
-        var_User2d_XY_lname(indx)= temp_2d_lname_SrcResusp(i)
-        var_User2d_XY_MissVal(indx)= temp_2d_MissVal_SrcResusp(i)
-        var_User2d_XY_FillVal(indx)= temp_2d_FillVal_SrcResusp(i)
-        if(i.eq.1)var_User2d_XY(:,:,indx) = real(FricVel_ip(:,:),kind=op)
-      enddo
-
-      do i=1,nvar_User3d_XYGs_SrcResusp
-        indx = indx_User3d_XYGs_SrcResusp+i
-        var_User3d_XYGs_name(indx) = temp_3ds_name_SrcResusp(i)
-        var_User3d_XYGs_unit(indx) = temp_3ds_unit_SrcResusp(i)
-        var_User3d_XYGs_lname(indx)= temp_3ds_lname_SrcResusp(i)
-        var_User3d_XYGs_MissVal(indx)= temp_3ds_MissVal_SrcResusp(i)
-        var_User3d_XYGs_FillVal(indx)= temp_3ds_FillVal_SrcResusp(i)
-        if(i.eq.1)var_User3d_XYGs(:,:,:,indx) = real(SourceNodeFlux_Area(:,:,:),kind=op)
-      enddo
+      if(nvar_User3d_XYGs_SrcResusp.gt.0)then
+        do i=1,nvar_User3d_XYGs_SrcResusp
+          indx = indx_User3d_XYGs_SrcResusp+i
+          var_User3d_XYGs_name(indx) = temp_3ds_name_SrcResusp(i)
+          var_User3d_XYGs_unit(indx) = temp_3ds_unit_SrcResusp(i)
+          var_User3d_XYGs_lname(indx)= temp_3ds_lname_SrcResusp(i)
+          var_User3d_XYGs_MissVal(indx)= temp_3ds_MissVal_SrcResusp(i)
+          var_User3d_XYGs_FillVal(indx)= temp_3ds_FillVal_SrcResusp(i)
+          if(i.eq.1)then
+            var_User3d_XYGs(1:nxmax,1:nymax,1:nsmax,indx) = real(SourceNodeFlux_Area(1:nxmax,1:nymax,1:nsmax),kind=op)
+          endif
+        enddo
+      endif
 
       end subroutine Prep_output_Source_Resuspension
 

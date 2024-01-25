@@ -489,23 +489,37 @@
       if(useOceanCurrent) call Prep_output_OSCAR
 #endif
 #ifdef VARDIFF
-      if(useVarDiffH.or.useVarDiffV) call Prep_output_VarDiff
+      if(useVarDiffH.or.useVarDiffV)then
+        do io=1,2;if(VB(io).le.verbosity_debug1)then
+          write(outlog(io),*)"Calling Prep_output_VarDiff."
+        endif;enddo
+        call Prep_output_VarDiff
+      endif
 #endif
 #ifdef WETDEPO
       if(USE_WETDEPO) call Prep_output_WetDepo
 #endif
 #ifdef SRC_SAT
       if(SourceType.eq.'satellite')then
+        do io=1,2;if(VB(io).le.verbosity_debug1)then
+          write(outlog(io),*)"Calling Prep_output_SrcSat."
+        endif;enddo
         call Prep_output_SrcSat
       endif
 #endif
 #ifdef SRC_RESUSP
       if(SourceType.eq.'resuspens')then
+        do io=1,2;if(VB(io).le.verbosity_debug1)then
+          write(outlog(io),*)"Calling Prep_output_Source_Resuspension."
+        endif;enddo
         call Prep_output_Source_Resuspension
       endif
 #endif
 #ifdef SRC_GAS
       if(SourceType.eq.'gas')then
+        do io=1,2;if(VB(io).le.verbosity_debug1)then
+          write(outlog(io),*)"Calling Prep_output_Source_Gas."
+        endif;enddo
         call Prep_output_Source_Gas
       endif
 #endif
@@ -830,23 +844,28 @@
 !       OPTIONAL MODULES
 !         Insert calls output routines (every output-step) here
 !
-#ifdef WETDEPO
-          do io=1,2;if(VB(io).le.verbosity_debug1)then
-            write(outlog(io),*)"Calling ThicknessCalculator_WetDepo."
-          endif;enddo
-          if(USE_WETDEPO) call ThicknessCalculator_WetDepo
-#endif
+!#ifdef WETDEPO
+!          do io=1,2;if(VB(io).le.verbosity_debug1)then
+!            write(outlog(io),*)"Calling ThicknessCalculator_WetDepo."
+!          endif;enddo
+!          if(USE_WETDEPO) call ThicknessCalculator_WetDepo
+!#endif
 #ifdef VARDIFF
-          do io=1,2;if(VB(io).le.verbosity_debug1)then
-            write(outlog(io),*)"Calling Prep_output_VarDiff."
-          endif;enddo
-          if(useVarDiffH.or.useVarDiffV) call Prep_output_VarDiff
+          if(useVarDiffH.or.useVarDiffV)then
+            do io=1,2;if(VB(io).le.verbosity_debug1)then
+              write(outlog(io),*)"Calling Prep_output_VarDiff."
+            endif;enddo
+            call Prep_output_VarDiff
+          endif
 #endif
 #ifdef WETDEPO
-          do io=1,2;if(VB(io).le.verbosity_debug1)then
-            write(outlog(io),*)"Calling Prep_output_WetDepo."
-          endif;enddo
-          if(USE_WETDEPO) call Prep_output_WetDepo
+          if(USE_WETDEPO)then
+            do io=1,2;if(VB(io).le.verbosity_debug1)then
+              write(outlog(io),*)"Calling Prep_output_WetDepo."
+            endif;enddo
+            call ThicknessCalculator_WetDepo
+            call Prep_output_WetDepo
+          endif
 #endif
 #ifdef SRC_RESUSP
           if(SourceType.eq.'resuspens')then
