@@ -219,12 +219,12 @@
         !vonKarman = 0.4
         !LambdaC   = 30.0
         !RI_CRIT   = 0.25
-        !do io=1,2;if(VB(io).le.verbosity_info)then
-        !  write(outlog(io),*)KH_SmagC
-        !  write(outlog(io),*)vonKarman
-        !  write(outlog(io),*)LambdaC
-        !  write(outlog(io),*)RI_CRIT
-        !endif;enddo
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)KH_SmagC
+          write(outlog(io),*)vonKarman
+          write(outlog(io),*)LambdaC
+          write(outlog(io),*)RI_CRIT
+        endif;enddo
 
         ! We will want to reuse velocities on the metP grid for this module
         MR_Save_Velocities = .true.
@@ -547,16 +547,16 @@
         do j=1,ny_submet
           ! For the calculations, we need:
           !  PBLz, L_MonOb, FricVel, Ri, dv_dz, and z
-          If(last_or_next.eq.0)then
-              Ri_col(:) = real(Ri_meso_last_step_MetP_sp(i,j,:),kind=ip)    !
-               z_col(:) = real(MR_geoH_metP_last(i,j,:),kind=ip)*KM_2_M        ! m
+          if(last_or_next.eq.0)then
+              Ri_col(:) = real(Ri_meso_last_step_MetP_sp(i,j,:),kind=ip)    ! dimensionless
+               z_col(:) = real(MR_geoH_metP_last(i,j,:),kind=ip)*KM_2_M     ! m
            dv_dz_col(:) = real(dV_dz_MetP_sp(i,j,:),kind=ip)                ! 1/s
                 PBLz    = real(PBLH_meso_last_step_Met_sp(i,j),kind=ip)     ! m
              L_MonOb    = real(L_MonOb_meso_last_step_Met_sp(i,j),kind=ip)  ! m
              FricVel    = real(FricVel_meso_last_step_Met_sp(i,j),kind=ip)  ! m/s
           else
-              Ri_col(:) = real(Ri_meso_next_step_MetP_sp(i,j,:),kind=ip)    !
-               z_col(:) = real(MR_geoH_metP_next(i,j,:),kind=ip)*KM_2_M        ! m
+              Ri_col(:) = real(Ri_meso_next_step_MetP_sp(i,j,:),kind=ip)    ! dimensionless
+               z_col(:) = real(MR_geoH_metP_next(i,j,:),kind=ip)*KM_2_M     ! m
            dv_dz_col(:) = real(dV_dz_MetP_sp(i,j,:),kind=ip)                ! 1/s
                 PBLz    = real(PBLH_meso_next_step_Met_sp(i,j),kind=ip)     ! m
              L_MonOb    = real(L_MonOb_meso_next_step_Met_sp(i,j),kind=ip)  ! m
@@ -570,14 +570,14 @@
                 ! If point is at a negative gpm, then assign the kz from the
                 ! node above
               Kz_tmp = Kv_col(k+1)
-            elseif(z_col(k)*KM_2_M.lt.PBLz)then
+            elseif(z_col(k).lt.PBLz)then
               ! Within the PBL, use similarity theory
                 ! Parabolic profile factor for Kv between 0 and PBL
               PBL_profile_fac = z_col(k)*(1.0_sp-z_col(k)/PBLz)
 
-              !PBL_coeff = PBL_Similarity_Kansas(z_on_L)
-              !PBL_coeff = PBL_Similarity_Kansas_Ri(Ri_col_windp(k))
-              !PBL_coeff = PBL_Similarity_Ulke(z_col(k),PBLz,L_MonOb)
+              !PBL_coeff = Phi_Similarity_Kansas(z_on_L)
+              !PBL_coeff = Phi_Similarity_Kansas_Ri(Ri_col(k))
+              !PBL_coeff = Phi_Similarity_Ulke(z_col(k),PBLz,L_MonOb)
               PBL_coeff = Phi_WindShear_NonDim(z_col(k),PBLz,L_MonOb, &
                                     Coeff_Stab,Coeff_UnStab,Exp_UnStab)
     
@@ -592,7 +592,7 @@
                 !    There are several ways to parameterize the mixing
                 !    length (Randerson, p155, 1984; Monin and Yaglom, v1,
                 !    p409. Collins et al, NCAR TN-464, 2004, eq. 4.461)
-              Lc = MixLen_CAM3(real(z_col(k),kind=ip))
+              Lc = MixLen(real(z_col(k),kind=ip))
     
                 ! calculate eq 8
                 ! The Ri-term seems to zero out anything above the PBL
@@ -602,13 +602,9 @@
     
             ! assign to array and convert from m2/s to km2/hr
             Kv_col(k) = Kz_tmp * HR_2_S/KM_2_M/KM_2_M
-
-            !if(i.eq.3.and.j.eq.15)then
-            !  write(55,*)z_col(k),Ri_col(k),PBLz,L_MonOb,Kz_tmp
-            !endif
           enddo
 
-          If(last_or_next.eq.0)then
+          if(last_or_next.eq.0)then
             Kv_meso_last_step_MetP_sp(i,j,:) = real(Kv_col(:),kind=sp)
           else
             Kv_meso_next_step_MetP_sp(i,j,:) = real(Kv_col(:),kind=sp)
@@ -771,6 +767,9 @@
 
       subroutine Set_VarDiffV_Meso(Load_MesoSteps,Interval_Frac)
 
+      use global_param,  only : &
+         M2PS_2_KM2PHR
+
       use mesh,          only : &
          nxmax,nymax,nzmax
 
@@ -839,11 +838,7 @@
       kz(1:nxmax,1:nymax,1:nzmax) = real(Kv_meso_last_step_sp(:,:,:),kind=ip) + &
                                     real((Kv_meso_next_step_sp(:,:,:) - &
                                           Kv_meso_last_step_sp(:,:,:)),kind=ip) * &
-                                              Interval_Frac
-      kz = kz * 3600.0_ip
-      !HFS KLUDGE
-      !kz = 5.0_ip
-
+                                              Interval_Frac * M2PS_2_KM2PHR
       ! Set boundary kz
         ! Bottom
       kz(0:nxmax+1,0:nymax+1,0) = kz(0:nxmax+1,0:nymax+1,1)
@@ -857,7 +852,6 @@
       kz(0:nxmax+1,0,0:nzmax+1) = kz(0:nxmax+1,1,0:nzmax+1)
         ! +y (North)
       kz(0:nxmax+1,nymax+1,0:nzmax+1) = kz(0:nxmax+1,nymax,0:nzmax+1)
-
 
       end subroutine Set_VarDiffV_Meso
 
@@ -953,12 +947,12 @@
             dvdz   = (v(k2)-v(k1)) / del_z
 
             temp_term = dtdz/Tpoten(k)
-            dV_dz_MetP_sp(i,j,k) = real(max(dudz*dudz+dvdz*dvdz,EPS_SMALL),kind=sp)
+            dV_dz_MetP_sp(i,j,k) = real(max(abs(dudz)+abs(dvdz),EPS_SMALL),kind=sp)
             ! When comparing the Ri calculation below with that from
             ! MERRA, it seems that the magnitude of dv_dz is at least
             ! 3.0e-3 m/s.  Smaller values cause Ri to become singular.
-            ! In fact, they may assume a dv_dz = 3.0e-3 m/s
-            mech_term = max(real(dV_dz_MetP_sp(i,j,k),kind=ip),3.0e-3_ip)/GRAV
+            ! In fact, they may assume a (dv_dz)^2 = 3.0e-3 m/s
+            mech_term = max(real(dV_dz_MetP_sp(i,j,k)**2.0_sp,kind=ip),3.0e-3_ip)/GRAV
             Ri = real(temp_term / mech_term,kind=sp)
             if(last_or_next.eq.0)then
               Ri_meso_last_step_MetP_sp(i,j,k) = Ri
@@ -1052,7 +1046,7 @@
       subroutine Calc_SurfaceFrictionVelocity(last_or_next)
 
       use global_param,  only : &
-         KM_2_M,MPS_2_KMPHR
+         EPS_SMALL,KM_2_M,MPS_2_KMPHR
 
       use MetReader,     only : &
          Met_var_IsAvailable,MR_iMetStep_Now,np_fullmet,MR_iMetStep_Now,&
@@ -1066,6 +1060,7 @@
       real(kind=ip) :: U_mag,denom,z0
       integer :: i,j,k
       integer :: ivar
+      logical :: FV_override = .false.
 
       ! Check if the windfile being used provides friction velocity
       ivar = 13 ! Friction_velocity_surface
@@ -1073,12 +1068,24 @@
         ! Friction velocity is provided, read it from the met file
         if(last_or_next.eq.0)then
           call MR_Read_2d_Met_Variable(ivar,MR_iMetStep_Now)
+            FricVel_meso_last_step_Met_sp = MR_dum2d_Met
+          if(maxval(MR_dum2d_Met(:,:)).lt.EPS_SMALL)then
+            ! variable was present in file, but filled with nonsense
+            FV_override = .true.
+          endif
         else
           call MR_Read_2d_Met_Variable(ivar,MR_iMetStep_Now+1)
+            FricVel_meso_next_step_Met_sp = MR_dum2d_Met
+          if(maxval(MR_dum2d_Met(:,:)).lt.EPS_SMALL)then
+            ! variable was present in file, but filled with nonsense
+            FV_override = .true.
+          endif
         endif
-        FricVel_meso_next_step_Met_sp = MR_dum2d_Met
-      else
-        ! friction velocity is not provided by the met file
+      endif
+        !FricVel_meso_next_step_Met_sp = MR_dum2d_Met
+
+      if(.not.Met_var_IsAvailable(ivar).or.FV_override)then
+        ! friction velocity is not provided by the met file (or is not valid)
         ! Calculate it ourselves
         ! Get surface friction velocity using Panofsky/Dutton p376
         do i=1,nx_submet
@@ -1134,6 +1141,7 @@
       real(kind=ip) :: z_col(np_fullmet)
       real(kind=ip) :: L_MonOb
       real(kind=ip) :: PBLz
+      logical :: PBL_override = .false.
 
       ! Check if the windfile being used provides PBLH
       ivar = 10 ! Planetary Boundary Level Height
@@ -1142,13 +1150,23 @@
         if(last_or_next.eq.0)then
           call MR_Read_2d_Met_Variable(ivar,MR_iMetStep_Now)
             PBLH_meso_last_step_Met_sp = MR_dum2d_Met
+          if(maxval(MR_dum2d_Met(:,:)).lt.0.0_sp)then
+            ! variable was present in file, but filled with nonsense
+            PBL_override = .true.
+          endif
         else
           call MR_Read_2d_Met_Variable(ivar,MR_iMetStep_Now+1)
             PBLH_meso_next_step_Met_sp = MR_dum2d_Met
+          if(maxval(MR_dum2d_Met(:,:)).lt.0.0_sp)then
+            ! variable was present in file, but filled with nonsense
+            PBL_override = .true.
+          endif
         endif
+      endif
 
-      else
-        ! We need to calculate PBLH internally.  There are many more involved
+      if(.not.Met_var_IsAvailable(ivar).or.PBL_override)then
+        ! If PBLH is not provided by the NWP file or is corrupted, then
+        ! we need to calculate PBLH internally.  There are many more involved
         ! methods of determining the PBL, but using Ri and Ri_crit seems to
         ! work fairly well, although it tends to calculate thiner PBLH than
         ! NARR and MERRA report.  Sometimes the difference is dramatic.
@@ -1156,7 +1174,7 @@
           ! Troen and Mahrt, Boundary-Layer Meteorology, v37, p129-148, 1986.
         do i=1,nx_submet
           do j=1,ny_submet
-            If(last_or_next.eq.0)then
+            if(last_or_next.eq.0)then
               Ri_col(:) = Ri_meso_last_step_MetP_sp(i,j,:)
               z_col(:)  = MR_geoH_metP_last(i,j,:)*KM_2_M
             else
@@ -1164,6 +1182,7 @@
               z_col(:)  = MR_geoH_metP_next(i,j,:)*KM_2_M
             endif
               ! Initialize boundary layer height to sea level
+            ! HFS fix this: some points do not result in a PBLz
             PBLz = EPS_SMALL
             do k = 2,np_fullmet-1
               if(Ri_col(k).gt.RI_CRIT.and.Ri_col(k-1).le.RI_CRIT)then
@@ -1207,7 +1226,7 @@
         ! Arya, 1988
       do i=1,nx_submet
         do j=1,ny_submet
-          If(last_or_next.eq.0)then
+          if(last_or_next.eq.0)then
             Ri_col(:) = Ri_meso_last_step_MetP_sp(i,j,:)
             z_col(:)      = MR_geoH_metP_last(i,j,:)*KM_2_M
           else
@@ -1247,22 +1266,22 @@
 !!******************************************************************************
 
       function Fc(Ri)
-      ! Stability function for verticle diffusion
+
+      ! Stability function for vertical diffusion in the free atmosphere above the PBL
       ! see Costa et al, EPSL v241, p634, 2006; eq 10
       ! Originally from Collins et al, NCAR TN-464, 2004
       ! http://www.cesm.ucar.edu/models/atm-cam/docs/description/description.pdf
 
-
       implicit none
 
-      real(kind=ip) :: Fc
-      real(kind=ip) :: Ri
+      real(kind=ip) :: Fc ! dimensionless
+      real(kind=ip) :: Ri ! dimensionless
 
       if(Ri.ge.0.0_ip)then
-          ! Eq. 4.465
+          ! Eq. 4.465  : Stable atmosphere
         Fc = 1.0_ip/(1.0_ip+10.0_ip*Ri*(1.0_ip+8.0_ip*Ri))
       else
-          ! Eq. 4.464
+          ! Eq. 4.464  : unstable
         Fc = sqrt(1.0_ip-18.0_ip*Ri)
       endif
 
@@ -1272,34 +1291,41 @@
 
 !!******************************************************************************
 
-      function Fc_Piedelievre(Ri,rho,z)
-      ! Stability function for verticle diffusion
+      function Fc_PMB(Ri,ml,z)
+
+      ! Stability function for vertical diffusion
       ! see Piedelievre, Jean Philippe, Lue Musson-Genon, François Bompay, 1990:
       ! MEDIA—An Eulerian Model of Atmospheric Dispersion: First Validation on
       ! the Chernobyl Release. J. Appl. Meteor., 29, 1205–1220.
       ! doi: http://dx.doi.org/10.1175/1520-0450(1990)029<1205:MEMOAD>2.0.CO;2 
-      ! This is the model used by MDLP0
-      ! 
+      ! This is the model used by MDLP0 (also used in EMERRAUDE or PERIDOT)
 
       implicit none
 
-      real(kind=ip) :: Fc_Piedelievre
-      real(kind=ip) :: Ri,rho,z
+      real(kind=ip) :: Fc_PMB  ! dimensionless
+      real(kind=ip) :: Ri      ! dimensionless
+      real(kind=ip) :: ml      ! m
+      real(kind=ip) :: z       ! m
+        ! These are kept written as separate constants for consistancy with the
+        ! equation in the paper above
+      real(kind=ip),parameter :: b = 5.0_ip
+      real(kind=ip),parameter :: c = 5.0_ip
+      real(kind=ip),parameter :: d = 5.0_ip
+      real(kind=ip),parameter :: f = 5.19615242270663_ip ! = sqrt(27)
 
       if(Ri.ge.0.0_ip)then
-        Fc_Piedelievre = 1.0_ip/(1.0_ip+15.0_ip*Ri*sqrt(1.0_ip+5.0_ip*Ri) )
+        Fc_PMB = 1.0_ip/(1.0_ip+3.0_ip*b*Ri*sqrt(1.0_ip+d*Ri))
       else
-        Fc_Piedelievre = 1.0_ip/(1.0_ip+75.0_ip*(rho*rho*sqrt(Ri)/(z*z*5.19615242270663_ip)))
+        Fc_PMB = 1.0_ip/(1.0_ip+3.0_ip*b*c*(ml*ml*sqrt(Ri)/(z*z*f)))
       endif
 
       return
 
-      end function Fc_Piedelievre
-
+      end function Fc_PMB
 
 !!******************************************************************************
 
-      function ABL_Similarity_Kansas(z_on_L)
+      function Phi_Similarity_Kansas(z_on_L)
 
       ! Similarity function for boundary layer from the 1968 Kansas Field
       ! Program
@@ -1311,7 +1337,7 @@
 
       implicit none
 
-      real(kind=ip) :: ABL_Similarity_Kansas
+      real(kind=ip) :: Phi_Similarity_Kansas
       real(kind=ip) :: z_on_L
       real(kind=ip) :: beta,gammam
 
@@ -1325,19 +1351,19 @@
 
       if(z_on_L.ge.0.0_ip)then
         ! Stable
-        ABL_Similarity_Kansas = 1.0_ip/(1.0_ip+beta*z_on_L)
+        Phi_Similarity_Kansas = 1.0_ip/(1.0_ip+beta*z_on_L)
       else
         ! Unstable
-        ABL_Similarity_Kansas = (1.0_ip-gammam*z_on_L)**0.25_ip
+        Phi_Similarity_Kansas = (1.0_ip-gammam*z_on_L)**0.25_ip
       endif
 
       return
 
-      end function ABL_Similarity_Kansas
+      end function Phi_Similarity_Kansas
 
 !!******************************************************************************
 
-      function ABL_Similarity_Kansas_Ri(Ri)
+      function Phi_Similarity_Kansas_Ri(Ri)
 
       ! Similarity function for boundary layer from the 1968 Kansas Field
       ! Program, but expressed in terms of the Richardson number
@@ -1348,25 +1374,25 @@
 
       implicit none
 
-      real(kind=ip) :: ABL_Similarity_Kansas_Ri
+      real(kind=ip) :: Phi_Similarity_Kansas_Ri
       real(kind=ip)::  Ri
 
       if(Ri.lt.0.0_ip)then
         ! Unstable
-        ABL_Similarity_Kansas_Ri = (1.0_ip-15.0_ip*Ri)**0.25_ip
+        Phi_Similarity_Kansas_Ri = (1.0_ip-15.0_ip*Ri)**0.25_ip
         ! Note: Kramm et al, Precip Scav and Atmos Surf Exch v.2 p1125-1141,1992
         ! in eq 19, use 16.0*Ri instead of 15.0*Ri
       elseif(Ri.le.RI_CRIT)then
         ! Unstable
-        ABL_Similarity_Kansas_Ri = 1.0_ip-5.0_ip*Ri
+        Phi_Similarity_Kansas_Ri = 1.0_ip-5.0_ip*Ri
       else
       !  ! shouldn't be calculating boundary layer diffusivity for Ri this high
-        ABL_Similarity_Kansas_Ri = 0.0_ip
+        Phi_Similarity_Kansas_Ri = 0.0_ip
       endif
 
       return
 
-      end function ABL_Similarity_Kansas_Ri
+      end function Phi_Similarity_Kansas_Ri
 
 !!******************************************************************************
 
@@ -1411,27 +1437,32 @@
 
       end function Phi_WindShear_NonDim
 
-
 !!******************************************************************************
 
-      function MixLen_CAM3(z)
+      function MixLen(z)
 
       ! Returns the mixing length for Prandtl's turbulent diffusion
       ! See Collins et al, NCAR TN-464, 2004, eq. 4.461
       ! http://www.cesm.ucar.edu/models/atm-cam/docs/description/description.pdf
       ! This is originally from Blackadar (1962)
-      ! Louis (2000) found LambdaC to be 100m which Collins used 30m
+      ! Note that LambdaC is the free-atmospheric mixing length and is set in
+      ! the optional module block.
+      !  Jacobson (p251) gives the range of 70-200m
+      !  Louis (2000) found LambdaC to be 100m
+      !  Collins used 30m in the CAM3 model
+      !  Piedelievere et al (1990) used 150 m in the MEDIA model
 
       implicit none
 
-      real(kind=ip) :: MixLen_CAM3
-      real(kind=ip) :: z
+      real(kind=ip) :: MixLen  ! m
+      real(kind=ip) :: z       ! m
 
-      MixLen_CAM3 = 1.0_ip/(1.0_ip/(z*vonKarman) + 1.0_ip/LambdaC)
+      !MixLen = 1.0_ip/(1.0_ip/(z*vonKarman) + 1.0_ip/LambdaC)
+      MixLen = (z*vonKarman)/(1.0_ip+(z*vonKarman/LambdaC))
 
       return
 
-      end function MixLen_CAM3
+      end function MixLen
 
 !******************************************************************************
 
