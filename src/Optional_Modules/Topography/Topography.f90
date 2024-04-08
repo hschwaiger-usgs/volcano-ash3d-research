@@ -1,3 +1,11 @@
+!*******************************************************************************
+!# Topography
+!*******************************************************************************
+!OPTMOD=TOPO
+!yes                           # use topography?
+!2 1.0                         # Topofile format, smoothing radius
+!GEBCO_08.nc                   # topofile name
+
       module Topography
 
 !##############################################################################
@@ -106,18 +114,25 @@
 1104    format(7x,a20)
       enddo
 
+      write(*,*)"VB ", VB
+      write(*,*)"outlog ",outlog
+
       useTopo = .false.
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)"    Continue reading input file for topo block"
       endif;enddo
        ! Check if we're going to use topography
         read(10,'(a80)',iostat=ios,err=2010)linebuffer080
-
+        write(*,*)linebuffer080
         read(linebuffer080,'(a3)') answer
         if (answer.eq.'yes') then
           useTopo = .true.
-          read(linebuffer080,*) answer,dum_int
-          if(dum_int.eq.1)ZScaling_ID=dum_int
+          read(linebuffer080,*,iostat=ios) answer,dum_int
+          if(ios.eq.0)then
+            if(dum_int.eq.1)ZScaling_ID=dum_int
+          else
+            if(dum_int.eq.1)ZScaling_ID=1
+          endif
           do io=1,2;if(VB(io).le.verbosity_info)then
             write(outlog(io),*)"    Using topography"
             if(ZScaling_ID.eq.1)write(outlog(io),*)"     with sigma-altitude coordinates"
