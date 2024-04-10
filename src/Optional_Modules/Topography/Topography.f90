@@ -114,16 +114,12 @@
 1104    format(7x,a20)
       enddo
 
-      write(*,*)"VB ", VB
-      write(*,*)"outlog ",outlog
-
       useTopo = .false.
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)"    Continue reading input file for topo block"
       endif;enddo
        ! Check if we're going to use topography
         read(10,'(a80)',iostat=ios,err=2010)linebuffer080
-        write(*,*)linebuffer080
         read(linebuffer080,'(a3)') answer
         if (answer.eq.'yes') then
           useTopo = .true.
@@ -135,7 +131,13 @@
           endif
           do io=1,2;if(VB(io).le.verbosity_info)then
             write(outlog(io),*)"    Using topography"
-            if(ZScaling_ID.eq.1)write(outlog(io),*)"     with sigma-altitude coordinates"
+            if(ZScaling_ID.eq.0)then
+              write(outlog(io),*)"     with altitude coordinates :: s=z"
+            elseif(ZScaling_ID.eq.1)then
+              write(outlog(io),*)"     with scaled-altitude coordinates :: s=z-Zsurf"
+            elseif(ZScaling_ID.eq.2)then
+              write(outlog(io),*)"     with sigma-altitude coordinates :: s=(z-Zsurf)/(Ztop-Zsurf)"
+            endif
           endif;enddo
         elseif(answer(1:2).eq.'no') then
           useTopo = .false.
@@ -298,6 +300,9 @@
           real(kind=8) :: latmax
         end subroutine 
       END INTERFACE
+
+      ! HFS: try to see if we can populate the met grid
+      !      If not, then just he comp grid
 
       ! First we need to get the extents of the computational grid
       if(IsLatLon)then
@@ -777,7 +782,6 @@
 !
       !  enddo
       !enddo
-
 
 
       return
