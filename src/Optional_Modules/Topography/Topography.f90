@@ -118,70 +118,71 @@
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)"    Continue reading input file for topo block"
       endif;enddo
-       ! Check if we're going to use topography
-        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
-        read(linebuffer080,'(a3)') answer
-        if (answer.eq.'yes') then
-          useTopo = .true.
-          read(linebuffer080,*,iostat=ios) answer,dum_int
-          if(ios.eq.0)then
-            if(dum_int.eq.1)ZScaling_ID=dum_int
-          else
-            if(dum_int.eq.1)ZScaling_ID=1
-          endif
-          do io=1,2;if(VB(io).le.verbosity_info)then
-            write(outlog(io),*)"    Using topography"
-            if(ZScaling_ID.eq.0)then
-              write(outlog(io),*)"     with altitude coordinates :: s=z"
-            elseif(ZScaling_ID.eq.1)then
-              write(outlog(io),*)"     with shifted-altitude coordinates :: s=z-Zsurf"
-            elseif(ZScaling_ID.eq.2)then
-              write(outlog(io),*)"     with sigma-altitude coordinates :: s=(z-Zsurf)/(Ztop-Zsurf)"
-            endif
-          endif;enddo
-        elseif(answer(1:2).eq.'no') then
-          useTopo = .false.
-          do io=1,2;if(VB(io).le.verbosity_info)then
-            write(outlog(io),*)"    Not using topography"
-          endif;enddo
+
+      ! Check if we're going to use topography
+      read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+      read(linebuffer080,'(a3)') answer
+      if (answer.eq.'yes') then
+        useTopo = .true.
+        read(linebuffer080,*,iostat=ios) answer,dum_int
+        if(ios.eq.0)then
+          ZScaling_ID=dum_int
         else
-          do io=1,2;if(VB(io).le.verbosity_error)then
-            write(errlog(io),*) 'Error reading whether to use topography.'
-            write(errlog(io),*) 'Answer must be yes or no.'
-            write(errlog(io),*) 'You gave:',linebuffer080
-            write(errlog(io),*) 'Program stopped'
-          endif;enddo
-          stop 1
+          ZScaling_ID=0
         endif
-
-        if (useTopo) then
-          ! Check if we're using topography, then get the format code
-          read(10,'(a80)',iostat=ios,err=2010)linebuffer080
-          read(linebuffer080,*,iostat=ioerr) topoFormat,rad_smooth
-          if(topoFormat.eq.1)then
-            do io=1,2;if(VB(io).le.verbosity_info)then
-              write(outlog(io),*)"Read topoFormat = 1 (ETOPO1)"
-              write(outlog(io),*)"    Read smoothing radius = ",&
-                                 real(rad_smooth,kind=4)
-            endif;enddo
-          elseif(topoFormat.eq.2)then
-            do io=1,2;if(VB(io).le.verbosity_info)then
-              write(outlog(io),*)"Read topoFormat = 2 (GEBCO08)"
-              write(outlog(io),*)"    Read smoothing radius = ",&
-                                 real(rad_smooth,kind=4)
-            endif;enddo
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"    Using topography"
+          if(ZScaling_ID.eq.0)then
+            write(outlog(io),*)"     with altitude coordinates :: s=z"
+          elseif(ZScaling_ID.eq.1)then
+            write(outlog(io),*)"     with shifted-altitude coordinates :: s=z-Zsurf"
+          elseif(ZScaling_ID.eq.2)then
+            write(outlog(io),*)"     with sigma-altitude coordinates :: s=(z-Zsurf)/(Ztop-Zsurf)"
           endif
-          ! And read the file name
-          read(10,'(a80)',iostat=ios,err=2010)linebuffer080
-          read(linebuffer080,*) file_topo
-          do io=1,2;if(VB(io).le.verbosity_info)then           
-            write(outlog(io),*)"    Read file_topo = ",file_topo
+        endif;enddo
+      elseif(answer(1:2).eq.'no') then
+        useTopo = .false.
+        do io=1,2;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)"    Not using topography"
+        endif;enddo
+      else
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*) 'Error reading whether to use topography.'
+          write(errlog(io),*) 'Answer must be yes or no.'
+          write(errlog(io),*) 'You gave:',linebuffer080
+          write(errlog(io),*) 'Program stopped'
+        endif;enddo
+        stop 1
+      endif
+
+      if (useTopo) then
+        ! Check if we're using topography, then get the format code
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+        read(linebuffer080,*,iostat=ioerr) topoFormat,rad_smooth
+        if(topoFormat.eq.1)then
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"Read topoFormat = 1 (ETOPO1)"
+            write(outlog(io),*)"    Read smoothing radius = ",&
+                               real(rad_smooth,kind=4)
           endif;enddo
-
-          ! Turn on flag in MetReader library for topography
-          MR_useTopo = .true.
-
+        elseif(topoFormat.eq.2)then
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"Read topoFormat = 2 (GEBCO08)"
+            write(outlog(io),*)"    Read smoothing radius = ",&
+                               real(rad_smooth,kind=4)
+          endif;enddo
         endif
+        ! And read the file name
+        read(10,'(a80)',iostat=ios,err=2010)linebuffer080
+        read(linebuffer080,*) file_topo
+        do io=1,2;if(VB(io).le.verbosity_info)then           
+          write(outlog(io),*)"    Read file_topo = ",file_topo
+        endif;enddo
+
+        ! Turn on flag in MetReader library for topography
+        MR_useTopo = .true.
+
+      endif
 
 2010  continue
       close(10)
