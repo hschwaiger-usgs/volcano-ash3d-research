@@ -134,7 +134,7 @@
             if(ZScaling_ID.eq.0)then
               write(outlog(io),*)"     with altitude coordinates :: s=z"
             elseif(ZScaling_ID.eq.1)then
-              write(outlog(io),*)"     with scaled-altitude coordinates :: s=z-Zsurf"
+              write(outlog(io),*)"     with shifted-altitude coordinates :: s=z-Zsurf"
             elseif(ZScaling_ID.eq.2)then
               write(outlog(io),*)"     with sigma-altitude coordinates :: s=(z-Zsurf)/(Ztop-Zsurf)"
             endif
@@ -290,6 +290,9 @@
       use mesh,          only : &
          IsLatLon,lon_cc_pd,lat_cc_pd,nxmax,nymax
 
+      use MetReader,       only : &
+         nx_submet,ny_submet,x_submet_sp,y_submet_sp
+
       implicit none
 
       INTERFACE
@@ -301,20 +304,18 @@
         end subroutine 
       END INTERFACE
 
-      ! HFS: try to see if we can populate the met grid
-      !      If not, then just he comp grid
-
       ! First we need to get the extents of the computational grid
       if(IsLatLon)then
         !Just get min and max of lat and lon.
         ! These were already calculated in calc_grid under the names
         ! latmin,latmax,lonmin,lonmax
-        minlat_Topo = minval(lat_cc_pd(-1:nymax+1))
-        maxlat_Topo = maxval(lat_cc_pd(-1:nymax+1))
-        minlon_Topo = minval(lon_cc_pd(-1:nxmax+1))
-        maxlon_Topo = maxval(lon_cc_pd(-1:nxmax+1))
+        minlat_Topo = min(minval(lat_cc_pd(-1:nymax+1)),real(minval(y_submet_sp(1:ny_submet)),kind=ip))
+        maxlat_Topo = max(maxval(lat_cc_pd(-1:nymax+1)),real(maxval(y_submet_sp(1:ny_submet)),kind=ip))
+        minlon_Topo = min(minval(lon_cc_pd(-1:nxmax+1)),real(minval(x_submet_sp(1:nx_submet)),kind=ip))
+        maxlon_Topo = max(maxval(lon_cc_pd(-1:nxmax+1)),real(maxval(x_submet_sp(1:nx_submet)),kind=ip))
       else
         ! This function is in Calc_Mesh
+        write(*,*)"HFS Check this."
         call get_minmax_lonlat(minlon_Topo,maxlon_Topo,minlat_Topo,maxlat_Topo)
       endif
 
@@ -600,7 +601,7 @@
 
       use mesh,          only : &
          nxmax,nymax,nzmax,IsLatLon,dx,dy,de,dn,lat_cc_pd,lon_cc_pd,&
-         x_cc_pd,y_cc_pd,z_cc_pd
+         x_cc_pd,y_cc_pd,z_cc_pd,xLL,yLL,lonLL,latLL
 
       use MetReader,       only : &
          MR_minlen,x_submet_sp,y_submet_sp,nx_submet,ny_submet,MR_dx_met,MR_dy_met,&
@@ -609,6 +610,7 @@
       implicit none
 
       integer :: i,j,k,it
+      integer :: iidx,jidx
       integer :: ncells
       real(kind=ip) :: topo_avg,dist,cell_len
       real(kind=ip) :: deltheta,x1,x2,y1,y2,z1,z2
@@ -618,6 +620,7 @@
       real(kind=ip) :: rad
       real(kind=sp) :: topo_smooth_comp(0:nxmax+1,0:nymax+1)
       real(kind=sp) :: topo_smooth_met(nx_submet,ny_submet)
+      real(kind=sp) :: xin,yin
 
       integer :: nx,ny
       real(kind=sp),dimension(:,:),allocatable :: topo_smooth
@@ -776,13 +779,21 @@
       MR_Topo_comp(1:nxmax,1:nymax) = topo_smooth_comp(1:nxmax,1:nymax)
 
       ! Now populate the topo array on the met grid
-      !do i = 1,nx_submet
-      !  do j = 1,ny_submet
-      !    if()
-!
-      !  enddo
-      !enddo
-
+      do i = 1,nx_submet
+        xin = x_submet_sp(i)
+        iidx = floor((xin-lonLL)/de) + 1
+        iidx = max(iidx,0)
+        iidx = min(iidx,nxmax+1)
+        do j = 1,ny_submet
+          yin = y_submet_sp(j)
+          jidx = floor((yin-latLL)/dn) + 1
+          jidx = max(jidx,0)
+          jidx = min(jidx,nymax+1)
+          MR_Topo_met(i,j) = topo_comp(iidx,jidx)
+          ! Assume anything lower than 0.0 is bathymetry; reset to 0.0
+          if (MR_Topo_met(i,j).lt.0.0_sp) MR_Topo_met(i,j) = 0.0_sp
+        enddo
+      enddo
 
       return
 
