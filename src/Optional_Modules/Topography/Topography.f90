@@ -81,7 +81,7 @@
          infile
 
       use MetReader,       only : &
-         MR_useTopo
+         MR_useTopo,MR_ZScaling_ID
 
       implicit none
 
@@ -130,6 +130,7 @@
         else
           ZScaling_ID=0
         endif
+        MR_ZScaling_ID = ZScaling_ID
         do io=1,2;if(VB(io).le.verbosity_info)then
           write(outlog(io),*)"    Using topography"
           if(ZScaling_ID.eq.0)then
@@ -760,7 +761,10 @@
               enddo ! loop over jj
             enddo ! loop over ii
             topo_smooth_comp(i,j) = real(topo_avg/norm,kind=sp)
+            ! Assume anything lower than 0.0 is bathymetry; reset to 0.0
+            if (topo_smooth_comp(i,j).lt.0.0_sp) topo_smooth_comp(i,j) = 0.0_sp
             ! Reset the topo index
+            ! This is only needed if we are letting the grid intersect topography
             topo_indx(i,j) = 0
             do k=1,nzmax+1
               if (z_cc_pd(k).le.topo_smooth_comp(i,j) .and. &
@@ -771,9 +775,7 @@
             enddo
           enddo
         enddo
-
       enddo
-
       ! Copy the smoothed data onto the main topo array
       topo_comp(0:nxmax+1,0:nymax+1) = topo_smooth_comp(0:nxmax+1,0:nymax+1)
       ! And copy to the MetReader array
