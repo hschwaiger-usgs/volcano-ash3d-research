@@ -283,11 +283,11 @@
 
 !##############################################################################
 !
-!    get_topo
+!    get_Topo
 !
 !##############################################################################
 
-      subroutine get_topo
+      subroutine Get_Topo
 
       use mesh,          only : &
          IsLatLon,lon_cc_pd,lat_cc_pd,nxmax,nymax
@@ -326,13 +326,13 @@
         write(outlog(io),*)"min max lat = ",real(minlat_Topo,kind=4),real(maxlat_Topo,kind=4)
       endif;enddo
 
-      call load_topo
+      call Load_Topo
 
-      call interp_topo
+      call Interp_Topo
 
-      call SmoothTopo
+      call Smooth_Topo
 
-      end subroutine get_topo
+      end subroutine Get_Topo
 
 !##############################################################################
 !
@@ -340,7 +340,7 @@
 !
 !##############################################################################
 
-      subroutine load_topo
+      subroutine Load_Topo
 
       use netcdf
 
@@ -485,15 +485,15 @@
       endif
       nSTAT = nf90_close(ncid)
 
-      end subroutine load_topo
+      end subroutine Load_Topo
 
 !##############################################################################
 !
-!    interp_topo
+!    Interp_Topo
 !
 !##############################################################################
 
-      subroutine interp_topo
+      subroutine Interp_Topo
 
       use global_param,  only : &
         EPS_SMALL
@@ -592,11 +592,11 @@
 
       endif
 
-      end subroutine interp_topo
+      end subroutine Interp_Topo
 
 !##############################################################################
 
-      subroutine SmoothTopo
+      subroutine Smooth_Topo
 
       use global_param,  only : &
          RAD_EARTH,DEG2RAD,DEG2RAD,PI
@@ -800,7 +800,7 @@
 
       return
 
-      end subroutine SmoothTopo
+      end subroutine Smooth_Topo
 
-      END module Topography
+      end module Topography
 

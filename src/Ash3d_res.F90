@@ -116,6 +116,9 @@
       use Ash3d_ASCII_IO,  only : &
            vprofilewriter
 
+      use MetReader,       only : &
+           MR_Set_SigmaAlt_Scaling
+
 #ifdef USENETCDF
       use Ash3d_Netcdf_IO,only : &
            NC_RestartFile_LoadConcen
@@ -382,10 +385,18 @@
 !         Insert calls to optional variable allocation subroutines here
 !
 #ifdef TOPO
-      if(useTopo)                      call Allocate_Topo(nxmax,nymax)
+      if(useTopo)then
+        call Allocate_Topo(nxmax,nymax)
+        call Get_Topo
+        call MR_Set_SigmaAlt_Scaling
+      endif
 #endif
 #ifdef LC
-      if(useLandCover)                 call Allocate_LC
+      if(useLandCover)then
+        call Allocate_LC
+        call load_LC
+        call assign_LC
+      endif
 #endif
 #ifdef OSCAR
       if(useOceanCurrent)              call Allocate_OSCAR
@@ -453,16 +464,16 @@
         if(USE_WETDEPO)     call Set_WetDepo_Meso(Load_MesoSteps,Interval_Frac)
 #endif
 
-#ifdef TOPO
-      if(useTopo) call get_topo
-#endif
-#ifdef LC
-      if(useLandCover)then
-        call load_LC
-        call assign_LC
-        !if(useResuspension) call get_roughlen
-      endif
-#endif
+!#ifdef TOPO
+!      if(useTopo) call get_topo
+!#endif
+!#ifdef LC
+!      if(useLandCover)then
+!      call load_LC
+!       call assign_LC
+!       !if(useResuspension) call get_roughlen
+!      endif
+!#endif
 #ifdef OSCAR
       if(useOceanCurrent)then
         do io=1,2;if(VB(io).le.verbosity_error)then
