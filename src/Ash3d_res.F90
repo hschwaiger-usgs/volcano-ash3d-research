@@ -388,7 +388,6 @@
       if(useTopo)then
         call Allocate_Topo(nxmax,nymax)
         call Get_Topo
-        call MR_Set_SigmaAlt_Scaling
       endif
 #endif
 #ifdef LC
