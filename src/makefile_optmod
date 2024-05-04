@@ -361,7 +361,7 @@ LandCover.o: Optional_Modules/LandCover/LandCover.f90 $(MFILE) Ash3d_VariableMod
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/LandCover/LandCover.f90
 WetDepo.o: Optional_Modules/Wet_Deposition/WetDepo.f90 $(MFILE) Ash3d_VariableModules.o Output_Vars.o Tephra.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/Wet_Deposition/WetDepo.f90
-Topography.o: Optional_Modules/Topography/Topography.f90 $(MFILE) Ash3d_VariableModules.o Output_Vars.o Tephra.o Calc_Mesh.o
+Topography.o: Optional_Modules/Topography/Topography.f90 $(MFILE) Ash3d_VariableModules.o Output_Vars.o Tephra.o Calc_Mesh.o $(DATAOBJ)
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/Topography/Topography.f90
 Variable_Diffusivity.o: Optional_Modules/Variable_Diffusivity/Variable_Diffusivity.f90 $(MFILE) Diffusion.o Ash3d_VariableModules.o Output_Vars.o Tephra.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/Variable_Diffusivity/Variable_Diffusivity.f90

@@ -1,5 +1,62 @@
 !*******************************************************************************
 !# Topography
+!#  Topofile format must be one of
+!#    1 : Gridded lon/lat (netcdf)
+!#        ETOPO : https://www.ncei.noaa.gov/products/etopo-global-relief-model
+!#          ETOPO 1 (deprecated)
+!#           lon double
+!#           lat float
+!#           z(lat,lon) short (m)
+!#            60 arcsec in one file (446 Mb)
+!#          ETOPO 2022 (netcdf whole or subset)
+!#           lon double
+!#           lat double
+!#           z(lat,lon) short (m)
+!#            15 arcsec in 15deg tiles (~20 Mb each)
+!#            30 arcsec in 1 file (1.6 Gb)
+!#            60 arcsec in 1 file (457 Mb)
+!#        GEBCO : https://www.gebco.net/
+!#          GEBCO 08 (deprecated)
+!#           x_range double
+!#           y_range double
+!#           z(xysize) short (m)
+!#            30 arcsec in one file (1.8 Gb)
+!#          GEBCO 14 (deprecated)
+!#           lon double
+!#           lat double
+!#           elevation(lat,lon) short (m)
+!#            30 arcsec in one file (1.8 Gb)
+!#          GEBCO 2023 (netcdf whole or subset)
+!#           lon double
+!#           lat double
+!#           elevation(lat,lon) short (m)
+!#            15 arcsec in 1 file (7.0 Gb for global)
+!#
+!#    2 : Gridded Binary
+!#        NOAA Globe (1-km/30 arcsec) https://www.ngdc.noaa.gov/mgg/topo/globe.html
+!#          16 tiles of binary elevation data
+!#           10800 col by 6000 row (-50->50lat) or 4800 or polar
+!#           signed 16 bit integer binary
+!#
+!#        GTOPO30 (1-km/30 arcsec)
+!#          https://www.usgs.gov/centers/eros/science/usgs-eros-archive-digital-elevation-global-30-arc-second-elevation-gtopo30
+!#          33 tiles of binary elevation data
+!#           DEM as signed 16 bit integer binary
+!#           HDR with the layout
+!#      
+!#        GMTED2010 (30,15,7.5 arcsec) https://www.usgs.gov/coastal-changes-and-impacts/gmted2010
+!#
+!#        US National Elevation Database (NED) 1/3 arcsec (10m)
+!#          https://www.usgs.gov/programs/national-geospatial-program/national-map
+!#          1x1 deg tiles of binary elevation data
+!#          flt as 4 byte float binary
+!#
+!#        Shuttle Radar Topography Mission (SRTM) 1 arcsec global
+!#          https://www.usgs.gov/centers/eros/science/usgs-eros-archive-digital-elevation-shuttle-radar-topography-mission-srtm-1
+!#           hgt as signed 16 bit integer binary
+!#
+!#    3 : ESRI ASCII 
+!#
 !*******************************************************************************
 !OPTMOD=TOPO
 !yes                           # use topography?
@@ -52,12 +109,26 @@
       integer :: nlat
       integer :: nlon
 
+      integer :: nlat_topo_fullgrid
+      integer :: nlon_topo_fullgrid
+      real(kind=dp), dimension(:)    ,allocatable :: lat_topo_fullgrid
+      real(kind=dp), dimension(:)    ,allocatable :: lon_topo_fullgrid
+
+      integer :: nlat_topo_subgrid
+      integer :: nlon_topo_subgrid
+      real(kind=dp), dimension(:)    ,allocatable :: lat_topo_subgrid
+      real(kind=dp), dimension(:)    ,allocatable :: lon_topo_subgrid
+      real(kind=dp) :: dlat_topo
+      real(kind=dp) :: dlon_topo
+      real(kind=ip), dimension(:,:)  ,allocatable :: topo_subgrid
+
       real(kind=ip), dimension(:)    ,allocatable :: lat_raw
       real(kind=ip), dimension(:)    ,allocatable :: lon_raw
       real(kind=ip), dimension(:,:)  ,allocatable :: topo_raw
+      real(kind=ip) :: dlat
+      real(kind=ip) :: dlon
 
-      real(kind=ip) :: dlat,dlon
-
+      ! These are on the computational grid
       real(kind=ip),dimension(:,:)  ,allocatable :: topo_comp ! Used if useTopo=.true.
       integer      ,dimension(:,:)  ,allocatable :: topo_indx ! kindex of topo
       integer,private :: lon_shift_flag
@@ -283,7 +354,7 @@
 
 !##############################################################################
 !
-!    get_Topo
+!    Get_Topo
 !
 !##############################################################################
 
@@ -307,32 +378,234 @@
       END INTERFACE
 
       ! First we need to get the extents of the computational grid
-      if(IsLatLon)then
+!      if(IsLatLon)then
         !Just get min and max of lat and lon.
         ! These were already calculated in calc_grid under the names
-        ! latmin,latmax,lonmin,lonmax
-        minlat_Topo = min(minval(lat_cc_pd(-1:nymax+1)),real(minval(y_submet_sp(1:ny_submet)),kind=ip))
-        maxlat_Topo = max(maxval(lat_cc_pd(-1:nymax+1)),real(maxval(y_submet_sp(1:ny_submet)),kind=ip))
-        minlon_Topo = min(minval(lon_cc_pd(-1:nxmax+1)),real(minval(x_submet_sp(1:nx_submet)),kind=ip))
-        maxlon_Topo = max(maxval(lon_cc_pd(-1:nxmax+1)),real(maxval(x_submet_sp(1:nx_submet)),kind=ip))
-      else
-        ! This function is in Calc_Mesh
-        write(*,*)"HFS Check this."
-        call get_minmax_lonlat(minlon_Topo,maxlon_Topo,minlat_Topo,maxlat_Topo)
-      endif
+        ! lonmin,lonmax,latmin,latmax
+!        minlon_Topo = min(minval(lon_cc_pd(-1:nxmax+1)),real(minval(x_submet_sp(1:nx_submet)),kind=ip))
+!        maxlon_Topo = max(maxval(lon_cc_pd(-1:nxmax+1)),real(maxval(x_submet_sp(1:nx_submet)),kind=ip))
+!        minlat_Topo = min(minval(lat_cc_pd(-1:nymax+1)),real(minval(y_submet_sp(1:ny_submet)),kind=ip))
+!        maxlat_Topo = max(maxval(lat_cc_pd(-1:nymax+1)),real(maxval(y_submet_sp(1:ny_submet)),kind=ip))
+
+        minlon_Topo = real(minval(x_submet_sp(1:nx_submet)),kind=ip)
+        maxlon_Topo = real(maxval(x_submet_sp(1:nx_submet)),kind=ip)
+        minlat_Topo = real(minval(y_submet_sp(1:ny_submet)),kind=ip)
+        maxlat_Topo = real(maxval(y_submet_sp(1:ny_submet)),kind=ip)
+
+!      else
+!        ! This function is in Calc_Mesh
+!        write(*,*)"HFS Check this."
+!        call get_minmax_lonlat(minlon_Topo,maxlon_Topo,minlat_Topo,maxlat_Topo)
+!      endif
 
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)"min max lon = ",real(minlon_Topo,kind=4),real(maxlon_Topo,kind=4)
         write(outlog(io),*)"min max lat = ",real(minlat_Topo,kind=4),real(maxlat_Topo,kind=4)
       endif;enddo
 
-      call Load_Topo
+      call Load_Topo_Gridded_NC
 
       call Interp_Topo
 
       call Smooth_Topo
 
       end subroutine Get_Topo
+
+!##############################################################################
+!
+!    Load_Topo_Gridded_NC
+!
+!##############################################################################
+
+      subroutine Load_Topo_Gridded_NC
+
+      use netcdf
+      use Ash3d_Netcdf_IO
+
+      implicit none
+
+      integer :: nSTAT
+      integer :: ncid
+      integer :: ivar,in_var_id,var_ndims
+
+      integer :: lat_dim_id        = 0
+      integer :: lon_dim_id        = 0
+      integer :: lat_var_id        = 0
+      integer :: lon_var_id        = 0
+      integer :: topo_var_id       = 0
+
+      character(len=NF90_MAX_NAME)  :: invar,dimname
+      integer :: dim_xtype,dimlen,i_dim
+      integer,dimension(:),allocatable :: var_dimIDs
+      integer :: var_xtype,var_id,idx
+      integer :: xtype, length, attnum
+
+      integer(kind=2), dimension(:)   ,allocatable :: dum1d_short
+      integer(kind=2), dimension(:,:) ,allocatable :: dum2d_short
+
+      real(kind=sp)   ,dimension(:)   ,allocatable :: temp1d_sp
+      real(kind=dp)   ,dimension(:)   ,allocatable :: temp1d_dp
+     
+      integer :: nlat_tot,nlon_tot
+      integer :: start_lat_idx,start_lon_idx,end_lon_idx
+      integer :: ilat,ilon
+
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Inside Load_Topo_GEBCO"
+      endif;enddo
+
+      nSTAT = nf90_open(adjustl(trim(file_topo)),NF90_NOWRITE,ncid)
+      if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"nf90_open topofile")
+
+      ! First look up the varaible containing the topographic data
+      invar = 'elevation'  ! This is the default for GEBCO
+      nSTAT = nf90_inq_varid(ncid,invar,topo_var_id)
+      if(nSTAT.ne.NF90_NOERR)then
+        call NC_check_status(nSTAT,0,"inq_varid elevation")
+        do io=1,nio;if(VB(io).le.verbosity_info)then
+          write(outlog(io),*)'  Cannot find variable ',trim(adjustl(invar))
+          write(outlog(io),*)'  Testing for known synonyms'
+        endif;enddo
+        invar = 'z'
+        nSTAT = nf90_inq_varid(ncid,invar,topo_var_id)  ! get the var_id for topo
+        if(nSTAT.ne.NF90_NOERR)then
+          call NC_check_status(nSTAT,0,"inq_varid z")
+          do io=1,nio;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)'  Cannot find variable elevation or z'
+            write(outlog(io),*)'  Unknown topography format'
+          endif;enddo
+          stop 1
+        endif
+      endif
+
+      ! We have found either elevation or z; now determine variable type and dimensions
+      nSTAT = nf90_inquire_variable(ncid, topo_var_id, invar, &
+                    xtype = var_xtype, &
+                    ndims = var_ndims)   ! get the number of dimensions
+
+      if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"inq_variable")
+      if(.not.allocated(var_dimIDs))allocate(var_dimIDs(var_ndims))
+      nSTAT = nf90_inquire_variable(ncid, topo_var_id, invar, &
+                dimids = var_dimIDs(:var_ndims))
+      if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"inq_variable")
+      write(*,*)trim(adjustl(invar))
+      write(*,*)var_xtype
+      write(*,*)var_ndims
+
+      if(var_ndims.eq.1)then
+        ! The deprecated GEBCO 08 data stores elevation in one long array
+        ! Need to use a special reader for this
+        write(*,*)"Looks like GEBCO 08"
+        write(*,*)"Calling special reader"
+      endif
+
+      ! get the dimension information for lon (or x)
+      i_dim = 1
+      nSTAT = nf90_inquire_dimension(ncid,var_dimIDs(i_dim), &
+                   name =  dimname, &
+                   len = dimlen)
+      if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"nf90_inquire_dimension X")
+      nlon_topo_fullgrid = dimlen
+      lon_dim_id    = var_dimIDs(i_dim)
+
+      nSTAT = nf90_inq_varid(ncid,dimname,var_id) ! get the variable associated with this dim
+      if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"inq_variable X")
+      ! Check what temporary array to use
+      nSTAT = nf90_inquire_variable(ncid, var_id, dimname, xtype = dim_xtype)
+      if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"nf90_inquire_variable X")
+      allocate(lon_topo_fullgrid(1:nlon_topo_fullgrid))
+      if(dim_xtype.eq.NF90_FLOAT)then
+        allocate(temp1d_sp(dimlen))
+        nSTAT = nf90_get_var(ncid,var_id,temp1d_sp, &
+                       start = (/1/),count = (/dimlen/))
+        if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"get_var X flt")
+        ! copy to local variable
+        lon_topo_fullgrid(1:nlon_topo_fullgrid) = real(temp1d_sp(1:nlon_topo_fullgrid),kind=dp)
+        deallocate(temp1d_sp)
+      elseif(dim_xtype.eq.NF90_DOUBLE)then
+        allocate(temp1d_dp(dimlen))
+        nSTAT = nf90_get_var(ncid,var_id,temp1d_dp, &
+                       start = (/1/),count = (/dimlen/))
+        if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"get_var X dbl")
+        ! copy to local variable
+        lon_topo_fullgrid(1:nlon_topo_fullgrid) = temp1d_dp(1:nlon_topo_fullgrid)
+        deallocate(temp1d_dp)
+      else
+        do io=1,nio;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)'ERROR: Cannot recognize variable type for X'
+          if(dim_xtype.eq.NF90_BYTE)  write(errlog(io),*)"NF90_BYTE = "  ,NF90_BYTE
+          if(dim_xtype.eq.NF90_CHAR)  write(errlog(io),*)"NF90_CHAR = "  ,NF90_CHAR
+          if(dim_xtype.eq.NF90_SHORT) write(errlog(io),*)"NF90_SHORT = " ,NF90_SHORT
+          if(dim_xtype.eq.NF90_INT)   write(errlog(io),*)"NF90_INT = "   ,NF90_INT
+          if(dim_xtype.eq.NF90_FLOAT) write(errlog(io),*)"NF90_FLOAT = " ,NF90_FLOAT
+          if(dim_xtype.eq.NF90_DOUBLE)write(errlog(io),*)"NF90_DOUBLE = ",NF90_DOUBLE
+          if(dim_xtype.eq.NF90_UBYTE) write(errlog(io),*)"NF90_UBYTE = " ,NF90_UBYTE
+          if(dim_xtype.eq.NF90_USHORT)write(errlog(io),*)"NF90_USHORT = ",NF90_USHORT
+          if(dim_xtype.eq.NF90_UINT)  write(errlog(io),*)"NF90_UINT = "  ,NF90_UINT
+          if(dim_xtype.eq.NF90_INT64) write(errlog(io),*)"NF90_INT64 = " ,NF90_INT64
+          if(dim_xtype.eq.NF90_UINT64)write(errlog(io),*)"NF90_UINT64 = ",NF90_UINT64
+          if(dim_xtype.eq.NF90_STRING)write(errlog(io),*)"NF90_STRING = ",NF90_STRING
+        endif;enddo
+        stop 1
+      endif
+      dlon_topo = lon_topo_fullgrid(2) - lon_topo_fullgrid(1)
+
+      ! get the dimension information for lat (or y)
+      i_dim = 2
+      nSTAT = nf90_inquire_dimension(ncid,var_dimIDs(i_dim), &
+                   name =  dimname, &
+                   len = dimlen)
+      if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"nf90_inquire_dimension Y")
+      nlat_topo_fullgrid = dimlen
+      lat_dim_id    = var_dimIDs(i_dim)
+
+      nSTAT = nf90_inq_varid(ncid,dimname,var_id) ! get the variable associated with this dim
+      if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"inq_variable Y")
+      ! Check what temporary array to use
+      nSTAT = nf90_inquire_variable(ncid, var_id, dimname, xtype = dim_xtype)
+      if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"nf90_inquire_variable Y")
+      allocate(lat_topo_fullgrid(1:nlat_topo_fullgrid))
+      if(dim_xtype.eq.NF90_FLOAT)then
+        allocate(temp1d_sp(dimlen))
+        nSTAT = nf90_get_var(ncid,var_id,temp1d_sp, &
+                       start = (/1/),count = (/dimlen/))
+        if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"get_var Y flt")
+        ! copy to local variable
+        lat_topo_fullgrid(1:nlat_topo_fullgrid) = real(temp1d_sp(1:nlat_topo_fullgrid),kind=dp)
+        deallocate(temp1d_sp)
+      elseif(dim_xtype.eq.NF90_DOUBLE)then
+        allocate(temp1d_dp(dimlen))
+        nSTAT = nf90_get_var(ncid,var_id,temp1d_dp, &
+                       start = (/1/),count = (/dimlen/))
+        if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"get_var Y dbl")
+        ! copy to local variable
+        lat_topo_fullgrid(1:nlat_topo_fullgrid) = temp1d_dp(1:nlat_topo_fullgrid)
+        deallocate(temp1d_dp)
+      else
+        do io=1,nio;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)'ERROR: Cannot recognize variable type for Y'
+          if(dim_xtype.eq.NF90_BYTE)  write(errlog(io),*)"NF90_BYTE = "  ,NF90_BYTE
+          if(dim_xtype.eq.NF90_CHAR)  write(errlog(io),*)"NF90_CHAR = "  ,NF90_CHAR
+          if(dim_xtype.eq.NF90_SHORT) write(errlog(io),*)"NF90_SHORT = " ,NF90_SHORT
+          if(dim_xtype.eq.NF90_INT)   write(errlog(io),*)"NF90_INT = "   ,NF90_INT
+          if(dim_xtype.eq.NF90_FLOAT) write(errlog(io),*)"NF90_FLOAT = " ,NF90_FLOAT
+          if(dim_xtype.eq.NF90_DOUBLE)write(errlog(io),*)"NF90_DOUBLE = ",NF90_DOUBLE
+          if(dim_xtype.eq.NF90_UBYTE) write(errlog(io),*)"NF90_UBYTE = " ,NF90_UBYTE
+          if(dim_xtype.eq.NF90_USHORT)write(errlog(io),*)"NF90_USHORT = ",NF90_USHORT
+          if(dim_xtype.eq.NF90_UINT)  write(errlog(io),*)"NF90_UINT = "  ,NF90_UINT
+          if(dim_xtype.eq.NF90_INT64) write(errlog(io),*)"NF90_INT64 = " ,NF90_INT64
+          if(dim_xtype.eq.NF90_UINT64)write(errlog(io),*)"NF90_UINT64 = ",NF90_UINT64
+          if(dim_xtype.eq.NF90_STRING)write(errlog(io),*)"NF90_STRING = ",NF90_STRING
+        endif;enddo
+        stop 1
+      endif
+      dlat_topo = lat_topo_fullgrid(2) - lat_topo_fullgrid(1)
+
+      write(*,*)lon_topo_fullgrid
+
+      stop 66
+
+      end subroutine Load_Topo_Gridded_NC
 
 !##############################################################################
 !

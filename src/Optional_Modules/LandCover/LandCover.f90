@@ -1,8 +1,10 @@
       module land_cover
 
 !##############################################################################
-!     
-!http://glcf.umd.edu/data/landcover/
+!     University of Maryland
+!     Global Land Cover Facility (GLCF)
+! https://geog.umd.edu/feature/global-land-cover-facility-%28glcf%29
+!
 ! wget ftp://ftp.glcf.umd.edu/glcf/Global_Land_Cover/Global/1deg/gl-latlong-1deg-landcover.bsq.gz
 ! wget ftp://ftp.glcf.umd.edu/glcf/Global_Land_Cover/Global/8km/gl-goodes-8km-landcover.bsq.gz
 ! wget ftp://ftp.glcf.umd.edu/glcf/Global_Land_Cover/Global/1km/gl-goodes-1km-landcover.bsq.gz
