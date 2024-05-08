@@ -11,7 +11,7 @@
 !#          ETOPO 2022 (netcdf whole or subset)
 !#           lon double
 !#           lat double
-!#           z(lat,lon) short (m)
+!#           z(lat,lon) float (m)
 !#            15 arcsec in 15deg tiles (~20 Mb each)
 !#            30 arcsec in 1 file (1.6 Gb)
 !#            60 arcsec in 1 file (457 Mb)
@@ -59,7 +59,7 @@
 !#
 !*******************************************************************************
 !OPTMOD=TOPO
-!yes                           # use topography?
+!yes 2                         # use topography?; z-mod (0=none,1=shift,2=sigma)
 !2 1.0                         # Topofile format, smoothing radius
 !GEBCO_08.nc                   # topofile name
 
@@ -104,10 +104,10 @@
       logical :: useTopo         = .false.
       logical :: useSmoothTopo   = .false.
 
-      real(kind=ip),dimension(:)       ,allocatable :: lat
-      real(kind=ip),dimension(:)       ,allocatable :: lon
-      integer :: nlat
-      integer :: nlon
+!      real(kind=ip),dimension(:)       ,allocatable :: lat
+!      real(kind=ip),dimension(:)       ,allocatable :: lon
+!      integer :: nlat
+!      integer :: nlon
 
       integer :: nlat_topo_fullgrid
       integer :: nlon_topo_fullgrid
@@ -120,16 +120,17 @@
       real(kind=dp), dimension(:)    ,allocatable :: lon_topo_subgrid
       real(kind=dp) :: dlat_topo
       real(kind=dp) :: dlon_topo
-      real(kind=ip), dimension(:,:)  ,allocatable :: topo_subgrid
+      real(kind=dp) :: cleft,cright
+      real(kind=sp), dimension(:,:)  ,allocatable :: topo_subgrid
 
-      real(kind=ip), dimension(:)    ,allocatable :: lat_raw
-      real(kind=ip), dimension(:)    ,allocatable :: lon_raw
-      real(kind=ip), dimension(:,:)  ,allocatable :: topo_raw
-      real(kind=ip) :: dlat
-      real(kind=ip) :: dlon
+!      real(kind=ip), dimension(:)    ,allocatable :: lat_raw
+!      real(kind=ip), dimension(:)    ,allocatable :: lon_raw
+!      real(kind=ip), dimension(:,:)  ,allocatable :: topo_raw
+!      real(kind=ip) :: dlat
+!      real(kind=ip) :: dlon
 
       ! These are on the computational grid
-      real(kind=ip),dimension(:,:)  ,allocatable :: topo_comp ! Used if useTopo=.true.
+      real(kind=sp),dimension(:,:)  ,allocatable :: topo_comp ! Used if useTopo=.true.
       integer      ,dimension(:,:)  ,allocatable :: topo_indx ! kindex of topo
       integer,private :: lon_shift_flag
 
@@ -287,8 +288,11 @@
         write(outlog(io),*)"--------------------------------------------------"
       endif;enddo
 
-      allocate(topo_comp(0:nx+1,0:ny+1));       topo_comp = 0.0_ip
-      allocate(topo_indx(0:nx+1,0:ny+1));       topo_indx = 0
+!      allocate(topo_comp(0:nx+1,0:ny+1));       topo_comp = 0.0_sp
+!      allocate(topo_indx(0:nx+1,0:ny+1));       topo_indx = 0
+      allocate(topo_comp(nx,ny));       topo_comp = 0.0_sp
+      allocate(topo_indx(nx,ny));       topo_indx = 0
+
 
       ! Set the start indecies
       indx_User2d_static_XY_Topo = nvar_User2d_static_XY
@@ -398,6 +402,11 @@
 !        call get_minmax_lonlat(minlon_Topo,maxlon_Topo,minlat_Topo,maxlat_Topo)
 !      endif
 
+      ! ETOPO and GEBCO data are provided on -180->180 grid so map to that domain
+      if(minlon_Topo.ge.180_ip)then
+        minlon_Topo = minlon_Topo-360.0_ip
+        maxlon_Topo = maxlon_Topo-360.0_ip
+      endif
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)"min max lon = ",real(minlon_Topo,kind=4),real(maxlon_Topo,kind=4)
         write(outlog(io),*)"min max lat = ",real(minlat_Topo,kind=4),real(maxlat_Topo,kind=4)
@@ -447,12 +456,30 @@
       real(kind=dp)   ,dimension(:)   ,allocatable :: temp1d_dp
      
       integer :: nlat_tot,nlon_tot
-      integer :: start_lat_idx,start_lon_idx,end_lon_idx
+      integer :: start_lat_idx,start_lon_idx
+      integer :: end_lat_idx,end_lon_idx
       integer :: ilat,ilon
 
+      logical :: x_inverted     = .false.
+      logical :: y_inverted     = .false.
+      logical :: wrapgrid       = .false.
+
+      integer(kind=2) ,dimension(:,:) ,allocatable :: temp2d_intS
+      integer(kind=4) ,dimension(:,:) ,allocatable :: temp2d_intL
+      real(kind=sp)   ,dimension(:,:) ,allocatable :: temp2d_sp
+      real(kind=dp)   ,dimension(:,:) ,allocatable :: temp2d_dp
+      integer :: i,ict, ileft(2),iright(2)   !if wrapgrid=.true. ict=2 and left & iright have 2 values, otherwise 1
+      integer :: iistart(2),iicount(2)     !if (wrapgrid), iistart(1)=istart, iistart(2)=1
+
       do io=1,2;if(VB(io).le.verbosity_info)then
-        write(outlog(io),*)"Inside Load_Topo_GEBCO"
+        write(outlog(io),*)"Inside Load_Topo_Gridded_NC"
       endif;enddo
+        ! Check to see if the domain straddles the anti-meridian
+      if (minlon_Topo.lt.180.0_ip.and.maxlon_Topo.gt.180.0_ip)then
+        lon_shift_flag = 1
+      else
+        lon_shift_flag = 0
+      endif
 
       nSTAT = nf90_open(adjustl(trim(file_topo)),NF90_NOWRITE,ncid)
       if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"nf90_open topofile")
@@ -488,9 +515,6 @@
       nSTAT = nf90_inquire_variable(ncid, topo_var_id, invar, &
                 dimids = var_dimIDs(:var_ndims))
       if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"inq_variable")
-      write(*,*)trim(adjustl(invar))
-      write(*,*)var_xtype
-      write(*,*)var_ndims
 
       if(var_ndims.eq.1)then
         ! The deprecated GEBCO 08 data stores elevation in one long array
@@ -549,6 +573,10 @@
         stop 1
       endif
       dlon_topo = lon_topo_fullgrid(2) - lon_topo_fullgrid(1)
+      if(dlon_topo.lt.0.0_ip)then
+        x_inverted = .true.
+        dlon_topo = abs(dlon_topo)
+      endif
 
       ! get the dimension information for lat (or y)
       i_dim = 2
@@ -600,10 +628,181 @@
         stop 1
       endif
       dlat_topo = lat_topo_fullgrid(2) - lat_topo_fullgrid(1)
+      if(dlat_topo.lt.0.0_dp)then
+        y_inverted = .true.
+        dlat_topo = abs(dlat_topo)
+      endif
 
-      write(*,*)lon_topo_fullgrid
+      ! All of the etopo and gebco files have start longitudes between -180 and 180
+      ! Sub grids that straddle the anti-meridian have max longitudes > 180
+      ! Now allocate space for the sub-grid of the topo file at the natural resolution
+      ! of the topography data
+      if(x_inverted.or.y_inverted)then
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Not yet set up for inverted x or y topo dimensions."
+        endif;enddo
+        stop 1
+      endif
 
-      stop 66
+      ! Check that the computational grid is in the correct periodic mapping to the topo grid
+      if(minlon_Topo.lt.lon_topo_fullgrid(1)-0.5_dp*dlon_topo)then
+        minlon_Topo = minlon_Topo + 360.0_dp
+        maxlon_Topo = maxlon_Topo + 360.0_dp
+      endif
+      start_lon_idx = -1
+      cleft = lon_topo_fullgrid(1)-0.5_dp*dlon_topo
+      do ilon=1,nlon_topo_fullgrid
+        cright = lon_topo_fullgrid(ilon)+0.5_dp*dlon_topo
+        if(minlon_Topo.ge.cleft.and. &
+           minlon_Topo.lt.cright)then
+          start_lon_idx = ilon
+        endif
+        cleft = cright
+      enddo
+      nlon_topo_subgrid = floor((maxlon_Topo-minlon_Topo)/dlon_topo)
+      if(start_lon_idx.lt.1.or.start_lon_idx.gt.nlon_topo_fullgrid)then
+        ! Couldn't find start x
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Couldn't find start x of topo sub-grid"
+        endif;enddo
+        stop 1
+      endif
+      if(start_lon_idx+nlon_topo_subgrid.gt.nlon_topo_fullgrid)then
+        wrapgrid = .true.
+      endif
+      ! Load data variables for just the subgrid defined above
+      if(wrapgrid)then
+        ict        = 2
+          ! index on the topo-sub-grid
+        ileft(1)   = 1
+        iright(1)  = nlon_topo_fullgrid - start_lon_idx
+        iistart(1) = start_lon_idx
+        iicount(1) = nlon_topo_fullgrid - start_lon_idx
+        ileft(2)   = iright(1) + 1
+        iright(2)  = nlon_topo_subgrid
+        iistart(2) = 1
+        iicount(2) = nlon_topo_subgrid - iicount(1)
+      else
+        ict        = 1
+        ileft(1)   = 1
+        iright(1)  = nlon_topo_subgrid
+        iistart(1) = start_lon_idx
+        iicount(1) = nlon_topo_subgrid
+      endif
+
+      start_lat_idx = -1
+      end_lat_idx   = -1
+      cleft = lat_topo_fullgrid(1)-0.5_dp*dlat_topo
+      do ilat=1,nlat_topo_fullgrid
+        cright = lat_topo_fullgrid(ilat)+0.5_dp*dlat_topo
+        if(minlat_Topo.ge.cleft.and. &
+           minlat_Topo.lt.cright)then
+          start_lat_idx = ilat
+        endif
+        if(maxlat_Topo.gt.cleft.and. &
+           maxlat_Topo.le.cright)then
+          end_lat_idx = ilat
+        endif
+        cleft = cright
+      enddo
+      if(start_lat_idx.lt.1.or.start_lat_idx.gt.nlat_topo_fullgrid)then
+        ! Couldn't find start y
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Couldn't find start y of topo sub-grid"
+        endif;enddo
+        stop 1
+      endif
+      if(end_lat_idx.lt.1.or.end_lat_idx.gt.nlat_topo_fullgrid)then
+        ! Couldn't find end y
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Couldn't find end y of topo sub-grid"
+        endif;enddo
+        stop 1
+      endif
+
+      nlat_topo_subgrid = end_lat_idx - start_lat_idx + 1
+      allocate(lon_topo_subgrid(nlon_topo_subgrid))
+      allocate(lat_topo_subgrid(nlat_topo_subgrid))
+      allocate(topo_subgrid(nlon_topo_subgrid,nlat_topo_subgrid))
+      do ilon=1,nlon_topo_subgrid
+        lon_topo_subgrid(ilon)=lon_topo_fullgrid(start_lon_idx)+(ilon-1)*dlat_topo
+      enddo
+      lat_topo_subgrid(1:nlat_topo_subgrid)=lat_topo_fullgrid(start_lat_idx:end_lat_idx)
+
+      ! Now re-inquire about the topo variables and load the data
+      nSTAT = nf90_inquire_variable(ncid, topo_var_id, invar, &
+                    xtype = var_xtype, &
+                    ndims = var_ndims)   ! get the number of dimensions
+      if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"nf90_inquire_variable topo")
+
+      ! Check what temporary array to use; this shoult be short, but to keep things
+      ! general, check int, float and double too.
+      if(var_xtype.eq.NF90_SHORT)then
+        do i=1,ict        !read subgrid at current time step
+          allocate(temp2d_intS(iicount(i),nlat_topo_subgrid))
+          nSTAT = nf90_get_var(ncid,topo_var_id,temp2d_intS(:,:), &
+                               start = (/iistart(i),start_lat_idx/), &
+                               count = (/iicount(i),nlat_topo_subgrid/))
+          if(nSTAT.ne.NF90_NOERR)call MR_NC_check_status(nSTAT,1,"get_var topo short")
+          ! copy to local variable
+          topo_subgrid(ileft(i):iright(i),1:nlat_topo_subgrid) = &
+                  real(temp2d_intS(1:iicount(i),1:nlat_topo_subgrid),kind=sp)
+          deallocate(temp2d_intS)
+        enddo
+      elseif(var_xtype.eq.NF90_INT)then
+        do i=1,ict        !read subgrid at current time step
+          allocate(temp2d_intL(iicount(i),nlat_topo_subgrid))
+          nSTAT = nf90_get_var(ncid,topo_var_id,temp2d_intL(:,:), &
+                         start = (/iistart(i),start_lat_idx/), &
+                         count = (/iicount(i),nlat_topo_subgrid/))
+          if(nSTAT.ne.NF90_NOERR)call MR_NC_check_status(nSTAT,1,"get_var topo int")
+          ! copy to local variable
+          topo_subgrid(ileft(i):iright(i),1:nlat_topo_subgrid) = &
+                  real(temp2d_intL(1:iicount(i),1:nlat_topo_subgrid),kind=sp)
+          deallocate(temp2d_intL)
+        enddo
+      elseif(var_xtype.eq.NF90_FLOAT)then
+        do i=1,ict        !read subgrid at current time step
+          allocate(temp2d_sp(iicount(i),nlat_topo_subgrid))
+          nSTAT = nf90_get_var(ncid,topo_var_id,temp2d_sp(:,:), &
+                         start = (/iistart(i),start_lat_idx/), &
+                         count = (/iicount(i),nlat_topo_subgrid/))
+          if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"get_var Y flt")
+          ! copy to local variable
+          topo_subgrid(ileft(i):iright(i),1:nlat_topo_subgrid) = &
+                  real(temp2d_sp(1:iicount(i),1:nlat_topo_subgrid),kind=sp)
+          deallocate(temp2d_sp)
+        enddo
+      elseif(var_xtype.eq.NF90_DOUBLE)then
+        do i=1,ict        !read subgrid at current time step
+          allocate(temp2d_dp(iicount(i),nlat_topo_subgrid))
+          nSTAT = nf90_get_var(ncid,topo_var_id,temp2d_dp(:,:), &
+                         start = (/iistart(i),start_lat_idx/), &
+                         count = (/iicount(i),nlat_topo_subgrid/))
+          if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"get_var Y dbl")
+          ! copy to local variable
+          topo_subgrid(ileft(i):iright(i),1:nlat_topo_subgrid) = &
+                  real(temp2d_dp(1:iicount(i),1:nlat_topo_subgrid),kind=sp)
+          deallocate(temp2d_dp)
+        enddo
+      else
+        do io=1,nio;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)'ERROR: Cannot recognize variable type for topo'
+          if(dim_xtype.eq.NF90_BYTE)  write(errlog(io),*)"NF90_BYTE = "  ,NF90_BYTE
+          if(dim_xtype.eq.NF90_CHAR)  write(errlog(io),*)"NF90_CHAR = "  ,NF90_CHAR
+          if(dim_xtype.eq.NF90_SHORT) write(errlog(io),*)"NF90_SHORT = " ,NF90_SHORT
+          if(dim_xtype.eq.NF90_INT)   write(errlog(io),*)"NF90_INT = "   ,NF90_INT
+          if(dim_xtype.eq.NF90_FLOAT) write(errlog(io),*)"NF90_FLOAT = " ,NF90_FLOAT
+          if(dim_xtype.eq.NF90_DOUBLE)write(errlog(io),*)"NF90_DOUBLE = ",NF90_DOUBLE
+          if(dim_xtype.eq.NF90_UBYTE) write(errlog(io),*)"NF90_UBYTE = " ,NF90_UBYTE
+          if(dim_xtype.eq.NF90_USHORT)write(errlog(io),*)"NF90_USHORT = ",NF90_USHORT
+          if(dim_xtype.eq.NF90_UINT)  write(errlog(io),*)"NF90_UINT = "  ,NF90_UINT
+          if(dim_xtype.eq.NF90_INT64) write(errlog(io),*)"NF90_INT64 = " ,NF90_INT64
+          if(dim_xtype.eq.NF90_UINT64)write(errlog(io),*)"NF90_UINT64 = ",NF90_UINT64
+          if(dim_xtype.eq.NF90_STRING)write(errlog(io),*)"NF90_STRING = ",NF90_STRING
+        endif;enddo
+        stop 1
+      endif
 
       end subroutine Load_Topo_Gridded_NC
 
@@ -613,152 +812,152 @@
 !
 !##############################################################################
 
-      subroutine Load_Topo
-
-      use netcdf
-
-      implicit none
-
-      integer :: nSTAT
-      integer :: ncid
-
-      integer :: topo_var_id       = 0
-
-      integer(kind=2), dimension(:)   ,allocatable :: dum1d_short
-      integer(kind=2), dimension(:,:) ,allocatable :: dum2d_short
-
-      integer :: nlat_tot,nlon_tot
-      integer :: start_lat_idx,start_lon_idx,end_lon_idx
-      integer :: ilat,ilon,idx
-
-      do io=1,2;if(VB(io).le.verbosity_info)then
-        write(outlog(io),*)"Inside load_topo"
-      endif;enddo
-        ! Check to see if the domain straddles the anti-meridian
-      if (minlon_Topo.lt.180.0_ip.and.maxlon_Topo.gt.180.0_ip)then
-        lon_shift_flag = 1
-      else
-        lon_shift_flag = 0
-      endif
-
-      nSTAT = nf90_open(adjustl(trim(file_topo)),NF90_NOWRITE,ncid)
-      if(nSTAT.ne.0)then
-        do io=1,2;if(VB(io).le.verbosity_error)then
-          write(errlog(io),*)'Could not open -',adjustl(trim(file_topo)),'-'
-          write(errlog(io),*)NF90_NOWRITE,ncid
-          write(errlog(io),*)'Exiting'
-        endif;enddo
-        stop 1
-      endif
-      nSTAT = nf90_inq_varid(ncid,'z',topo_var_id)
-
-      if(topoFormat.eq.1)then
-        ! ETOPO1 (1-minute global topo/batho)
-        nlat_tot = 10800 ! -89.99167          to  89.99167
-        nlon_tot = 21600 ! -179.991666666667  to 179.991666666667
-        dlon = 1.0_ip/60.0_ip
-        dlat = 1.0_ip/60.0_ip
-        start_lat_idx = int((minlat_Topo+90.0_ip)/dlon)
-      elseif(topoFormat.eq.2)then
-        ! GEBCO 08 (30-second global topo/batho)
-        nlat_tot = 21600
-        nlon_tot = 43200
-        dlon = 1.0_ip/120.0_ip
-        dlat = 1.0_ip/120.0_ip
-        start_lat_idx = int((minlat_Topo+90.0_ip)/dlon)
-        start_lat_idx = nlat_tot-start_lat_idx
-      endif
-      ! Define the sub-grid holding the topo data we need
-      nlon = int((maxlon_Topo-minlon_Topo)/dlon) + 4
-      nlat = int((maxlat_Topo-minlat_Topo)/dlat) + 4
-      allocate(lon_raw(nlon))
-      allocate(lat_raw(nlat))
-      allocate(topo_raw(nlon,nlat))
-      ! ETOPO1 and GEBCO08 have data that start at -180, so shift 0 accordingly
-      if(minlon_Topo.lt.0.0_ip)then
-        start_lon_idx = int((minlon_Topo+180.0_ip)/dlon)
-      elseif(minlon_Topo.ge.0.0_ip.and.minlon_Topo.lt.180.0_ip)then
-        start_lon_idx = int((minlon_Topo+180.0_ip)/dlon)
-      elseif(minlon_Topo.ge.180.0_ip)then
-        start_lon_idx = int((minlon_Topo-180.0_ip)/dlon)
-      endif
-
-!      if(lon_shift_flag.eq.0)then
-!        start_lon_idx = int((minlon_Topo-180.0_ip)/dlon)
+!      subroutine Load_Topo
+!
+!      use netcdf
+!
+!      implicit none
+!
+!      integer :: nSTAT
+!      integer :: ncid
+!
+!      integer :: topo_var_id       = 0
+!
+!      integer(kind=2), dimension(:)   ,allocatable :: dum1d_short
+!      integer(kind=2), dimension(:,:) ,allocatable :: dum2d_short
+!
+!      integer :: nlat_tot,nlon_tot
+!      integer :: start_lat_idx,start_lon_idx,end_lon_idx
+!      integer :: ilat,ilon,idx
+!
+!      do io=1,2;if(VB(io).le.verbosity_info)then
+!        write(outlog(io),*)"Inside load_topo"
+!      endif;enddo
+!        ! Check to see if the domain straddles the anti-meridian
+!      if (minlon_Topo.lt.180.0_ip.and.maxlon_Topo.gt.180.0_ip)then
+!        lon_shift_flag = 1
 !      else
-!        start_lon_idx = int((minlon_Topo+180.0_ip)/dlon)
+!        lon_shift_flag = 0
 !      endif
-
-      do ilon=1,nlon
-        lon_raw(ilon) = real(start_lon_idx+ilon-1,kind=ip)*dlon &
-                         - 0.5_ip*dlon - 180.0_ip
-      enddo
-      ! now shift the lon values if they start in the western hemisphere
-
-      if(lon_shift_flag.eq.0)then
-        end_lon_idx = nlon
-      else
-        end_lon_idx = int((180.0_ip-minlon_Topo)/dlon)
-      endif
-
-      if(topoFormat.eq.1)then
-        ! Since this file is about 450Mb, just load the whole thing
-        allocate(dum2d_short(nlon_tot,nlat_tot))
-        do ilat=1,nlat
-          lat_raw(ilat) = real(start_lat_idx+ilat-1,kind=ip)*dlat &
-                           - 0.5_ip*dlat - 90.0_ip
-        enddo
-          ! load the whole array
-        nSTAT = nf90_get_var(ncid,topo_var_id,dum2d_short)
-        do ilat=1,nlat
-          ! Get the index point of the start of the line
-          idx = start_lat_idx+ilat - 1
-          if(lon_shift_flag.eq.0)then
-            topo_raw(:,ilat) = real(dum2d_short(start_lon_idx:start_lon_idx+nlon-1,idx),kind=ip)
-          else
-            ! Copy the part west of the anti-meridian
-            topo_raw(1:end_lon_idx,ilat) = real(dum2d_short(start_lon_idx:start_lon_idx+end_lon_idx-1,idx),kind=ip)
-            ! And copy the part wrapped over the anti-meridian
-            topo_raw(end_lon_idx+1:nlon,ilat) = real(dum2d_short(1:nlon-end_lon_idx,idx),kind=ip)
-          endif
-        enddo
-
-        deallocate(dum2d_short)
-      elseif(topoFormat.eq.2)then
-        ! GEBCO_08 start at the NW corner of the grid
-        ! (89d59'45"N,179d59;45"W) and advances eastward, then
-        ! southwards in one long string.
-        allocate(dum1d_short(nlon_tot))
-        do ilat=1,nlat
-          ! Get the index point of the start of the line at the right
-          ! latitude
-          lat_raw(ilat)=(real(nlat_tot-(start_lat_idx-ilat+1),kind=ip)*dlat &
-                         -0.5_ip*dlat)-90.0_ip
-          idx = (start_lat_idx-ilat)*nlon_tot +1
-          ! Get the full row of topo values that encircle the globe
-          nSTAT = nf90_get_var(ncid,topo_var_id,dum1d_short, &
-                             start = (/idx/),        &
-                             count = (/nlon_tot/))
-          ! Now find just the subset that we need
-          if(lon_shift_flag.eq.0)then
-            topo_raw(1:nlon,ilat)=real(dum1d_short(start_lon_idx:start_lon_idx+nlon-1),kind=ip)
-          else
-            ! Copy the part west of the anti-meridian
-            topo_raw(1:end_lon_idx,ilat) = real(dum1d_short(start_lon_idx:start_lon_idx+end_lon_idx-1),kind=ip)
-            ! And copy the part wrapped over the anti-meridian
-            topo_raw(end_lon_idx+1:nlon,ilat) = real(dum1d_short(1:nlon-end_lon_idx),kind=ip)
-          endif
-        enddo
-        deallocate(dum1d_short)
-      else
-        do io=1,2;if(VB(io).le.verbosity_error)then
-          write(errlog(io),*)"topoFormat must equal 1 or 2."
-        endif;enddo
-        stop 1
-      endif
-      nSTAT = nf90_close(ncid)
-
-      end subroutine Load_Topo
+!
+!      nSTAT = nf90_open(adjustl(trim(file_topo)),NF90_NOWRITE,ncid)
+!      if(nSTAT.ne.0)then
+!        do io=1,2;if(VB(io).le.verbosity_error)then
+!          write(errlog(io),*)'Could not open -',adjustl(trim(file_topo)),'-'
+!          write(errlog(io),*)NF90_NOWRITE,ncid
+!          write(errlog(io),*)'Exiting'
+!        endif;enddo
+!        stop 1
+!      endif
+!      nSTAT = nf90_inq_varid(ncid,'z',topo_var_id)
+!
+!      if(topoFormat.eq.1)then
+!        ! ETOPO1 (1-minute global topo/batho)
+!        nlat_tot = 10800 ! -89.99167          to  89.99167
+!        nlon_tot = 21600 ! -179.991666666667  to 179.991666666667
+!        dlon = 1.0_ip/60.0_ip
+!        dlat = 1.0_ip/60.0_ip
+!        start_lat_idx = int((minlat_Topo+90.0_ip)/dlon)
+!      elseif(topoFormat.eq.2)then
+!        ! GEBCO 08 (30-second global topo/batho)
+!        nlat_tot = 21600
+!        nlon_tot = 43200
+!        dlon = 1.0_ip/120.0_ip
+!        dlat = 1.0_ip/120.0_ip
+!        start_lat_idx = int((minlat_Topo+90.0_ip)/dlon)
+!        start_lat_idx = nlat_tot-start_lat_idx
+!      endif
+!      ! Define the sub-grid holding the topo data we need
+!      nlon = int((maxlon_Topo-minlon_Topo)/dlon) + 4
+!      nlat = int((maxlat_Topo-minlat_Topo)/dlat) + 4
+!      allocate(lon_raw(nlon))
+!      allocate(lat_raw(nlat))
+!      allocate(topo_raw(nlon,nlat))
+!      ! ETOPO1 and GEBCO08 have data that start at -180, so shift 0 accordingly
+!      if(minlon_Topo.lt.0.0_ip)then
+!        start_lon_idx = int((minlon_Topo+180.0_ip)/dlon)
+!      elseif(minlon_Topo.ge.0.0_ip.and.minlon_Topo.lt.180.0_ip)then
+!        start_lon_idx = int((minlon_Topo+180.0_ip)/dlon)
+!      elseif(minlon_Topo.ge.180.0_ip)then
+!        start_lon_idx = int((minlon_Topo-180.0_ip)/dlon)
+!      endif
+!
+!!      if(lon_shift_flag.eq.0)then
+!!        start_lon_idx = int((minlon_Topo-180.0_ip)/dlon)
+!!      else
+!!        start_lon_idx = int((minlon_Topo+180.0_ip)/dlon)
+!!      endif
+!
+!      do ilon=1,nlon
+!        lon_raw(ilon) = real(start_lon_idx+ilon-1,kind=ip)*dlon &
+!                         - 0.5_ip*dlon - 180.0_ip
+!      enddo
+!      ! now shift the lon values if they start in the western hemisphere
+!
+!      if(lon_shift_flag.eq.0)then
+!        end_lon_idx = nlon
+!      else
+!        end_lon_idx = int((180.0_ip-minlon_Topo)/dlon)
+!      endif
+!
+!      if(topoFormat.eq.1)then
+!        ! Since this file is about 450Mb, just load the whole thing
+!        allocate(dum2d_short(nlon_tot,nlat_tot))
+!        do ilat=1,nlat
+!          lat_raw(ilat) = real(start_lat_idx+ilat-1,kind=ip)*dlat &
+!                           - 0.5_ip*dlat - 90.0_ip
+!        enddo
+!          ! load the whole array
+!        nSTAT = nf90_get_var(ncid,topo_var_id,dum2d_short)
+!        do ilat=1,nlat
+!          ! Get the index point of the start of the line
+!          idx = start_lat_idx+ilat - 1
+!          if(lon_shift_flag.eq.0)then
+!            topo_raw(:,ilat) = real(dum2d_short(start_lon_idx:start_lon_idx+nlon-1,idx),kind=ip)
+!          else
+!            ! Copy the part west of the anti-meridian
+!            topo_raw(1:end_lon_idx,ilat) = real(dum2d_short(start_lon_idx:start_lon_idx+end_lon_idx-1,idx),kind=ip)
+!            ! And copy the part wrapped over the anti-meridian
+!            topo_raw(end_lon_idx+1:nlon,ilat) = real(dum2d_short(1:nlon-end_lon_idx,idx),kind=ip)
+!          endif
+!        enddo
+!
+!        deallocate(dum2d_short)
+!      elseif(topoFormat.eq.2)then
+!        ! GEBCO_08 start at the NW corner of the grid
+!        ! (89d59'45"N,179d59;45"W) and advances eastward, then
+!        ! southwards in one long string.
+!        allocate(dum1d_short(nlon_tot))
+!        do ilat=1,nlat
+!          ! Get the index point of the start of the line at the right
+!          ! latitude
+!          lat_raw(ilat)=(real(nlat_tot-(start_lat_idx-ilat+1),kind=ip)*dlat &
+!                         -0.5_ip*dlat)-90.0_ip
+!          idx = (start_lat_idx-ilat)*nlon_tot +1
+!          ! Get the full row of topo values that encircle the globe
+!          nSTAT = nf90_get_var(ncid,topo_var_id,dum1d_short, &
+!                             start = (/idx/),        &
+!                             count = (/nlon_tot/))
+!          ! Now find just the subset that we need
+!          if(lon_shift_flag.eq.0)then
+!            topo_raw(1:nlon,ilat)=real(dum1d_short(start_lon_idx:start_lon_idx+nlon-1),kind=ip)
+!          else
+!            ! Copy the part west of the anti-meridian
+!            topo_raw(1:end_lon_idx,ilat) = real(dum1d_short(start_lon_idx:start_lon_idx+end_lon_idx-1),kind=ip)
+!            ! And copy the part wrapped over the anti-meridian
+!            topo_raw(end_lon_idx+1:nlon,ilat) = real(dum1d_short(1:nlon-end_lon_idx),kind=ip)
+!          endif
+!        enddo
+!        deallocate(dum1d_short)
+!      else
+!        do io=1,2;if(VB(io).le.verbosity_error)then
+!          write(errlog(io),*)"topoFormat must equal 1 or 2."
+!        endif;enddo
+!        stop 1
+!      endif
+!      nSTAT = nf90_close(ncid)
+!
+!      end subroutine Load_Topo
 
 !##############################################################################
 !
@@ -788,8 +987,10 @@
       endif;enddo
 
       ! Loop over all the computational grid points
-      do i=0,nxmax+1
-        do j=0,nymax+1
+!      do i=0,nxmax+1
+!        do j=0,nymax+1
+      do i=1,nxmax
+        do j=1,nymax
 
           if(IsLatLon)then
             olam = lon_cc_pd(i)
@@ -799,41 +1000,44 @@
             olam = xy2ll_xlon(i,j)
             ophi = xy2ll_ylat(i,j)
           endif
-          if(lon_shift_flag.eq.0)then
-            if(olam.gt. 180.0_ip)olam=olam-360.0_ip
+!          if(lon_shift_flag.eq.0)then
+            if(olam.gt. 180.0_ip.and.&
+               lon_topo_subgrid(nlon_topo_subgrid).lt.180.0_ip)olam=olam-360.0_ip
             if(olam.lt.-180.0_ip)olam=olam+360.0_ip
-          endif
+!          endif
 
           ! Now find the corresponding topo point
-          ilon = floor((olam-lon_raw(1))/dlon) + 1
-          ilat = floor((ophi-lat_raw(1))/dlat) + 1
-          if(olam-lon_raw(ilon).lt.0.0_ip)then
+!          write(*,*)i,j,olam,lon_topo_subgrid(1),dlon_topo,&
+!                    olam-lon_topo_subgrid(1),ophi,lat_topo_subgrid(1)
+          ilon = floor((olam-lon_topo_subgrid(1))/dlon_topo) + 1
+          ilat = floor((ophi-lat_topo_subgrid(1))/dlat_topo) + 1
+          if(olam-lon_topo_subgrid(ilon).lt.0.0_ip)then
             ilon=ilon-1
-          elseif(olam-lon_raw(ilon).ge.dlon)then
+          elseif(olam-lon_topo_subgrid(ilon).ge.dlon_topo)then
             ilon=ilon+1
           endif
-          if(ophi-lat_raw(ilat).lt.0.0_ip)then
+          if(ophi-lat_topo_subgrid(ilat).lt.0.0_ip)then
             ilat=ilat-1
-          elseif(ophi-lat_raw(ilat).ge.dlat)then
+          elseif(ophi-lat_topo_subgrid(ilat).ge.dlat_topo)then
             ilat=ilat+1
           endif
 
           ! No interp; just lower-left corner
-          topo_comp(i,j) = topo_raw(ilon,ilat)
+          topo_comp(i,j) = topo_subgrid(ilon,ilat)
 
           ! Bilinear interpolation
-          xfrac=(olam-lon_raw(ilon))/(lon_raw(ilon+1)-lon_raw(ilon))
-          yfrac=(ophi-lat_raw(ilat))/(lat_raw(ilat+1)-lat_raw(ilat))
+          xfrac=(olam-lon_topo_subgrid(ilon))/(lon_topo_subgrid(ilon+1)-lon_topo_subgrid(ilon))
+          yfrac=(ophi-lat_topo_subgrid(ilat))/(lat_topo_subgrid(ilat+1)-lat_topo_subgrid(ilat))
           xc = 1.0_ip-xfrac
           yc = 1.0_ip-yfrac
           if(xc.gt.1.0_ip+EPS_SMALL.or.xc.lt.0.0_ip-EPS_SMALL)then
             do io=1,2;if(VB(io).le.verbosity_error)then
-              write(errlog(io),*)'lon ',i,olam,lon_raw(ilon),xc
+              write(errlog(io),*)'lon ',i,olam,lon_topo_subgrid(ilon),xc
             endif;enddo
           endif
           if(yc.gt.1.0_ip+EPS_SMALL.or.yc.lt.0.0_ip-EPS_SMALL)then
             do io=1,2;if(VB(io).le.verbosity_error)then
-              write(errlog(io),*)'lat ',j,ophi,lat_raw(ilat),yc
+              write(errlog(io),*)'lat ',j,ophi,lat_topo_subgrid(ilat),yc
             endif;enddo
           endif
 
@@ -842,11 +1046,11 @@
           a3=xfrac*yfrac
           a4=yfrac*xc
 
-          topo_comp(i,j) = a1*topo_raw(ilon  ,ilat  ) + &
-                           a2*topo_raw(ilon+1,ilat  ) + &
-                           a3*topo_raw(ilon+1,ilat+1) + &
-                           a4*topo_raw(ilon  ,ilat+1)
-          topo_comp(i,j) = topo_comp(i,j) / 1000.0_ip ! convert to km
+          topo_comp(i,j) = a1*topo_subgrid(ilon  ,ilat  ) + &
+                           a2*topo_subgrid(ilon+1,ilat  ) + &
+                           a3*topo_subgrid(ilon+1,ilat+1) + &
+                           a4*topo_subgrid(ilon  ,ilat+1)
+          topo_comp(i,j) = topo_comp(i,j) / 1000.0_sp ! convert to km
 
           topo_indx(i,j) = 0
           do k=1,nzmax+1
@@ -858,7 +1062,7 @@
           enddo
         enddo
       enddo
-      deallocate(lon_raw,lat_raw,topo_raw)
+      deallocate(lon_topo_subgrid,lat_topo_subgrid,topo_subgrid)
 
       if(.not.IsLatLon) then
         deallocate(xy2ll_ylat,xy2ll_xlon)
@@ -893,7 +1097,8 @@
       real(kind=ip) :: Const1_2d     = 0.6820926132509800_ip
       real(kind=ip) :: fac_1,r,temp1,wg,char_len,norm
       real(kind=ip) :: rad
-      real(kind=sp) :: topo_smooth_comp(0:nxmax+1,0:nymax+1)
+      !real(kind=sp) :: topo_smooth_comp(0:nxmax+1,0:nymax+1)
+      real(kind=sp) :: topo_smooth_comp(nxmax,nymax)
       real(kind=sp) :: topo_smooth_met(nx_submet,ny_submet)
       real(kind=sp) :: xin,yin
 
@@ -976,8 +1181,11 @@
           jpad = floor(rad/dy)
         endif
 
-        do i=0,nxmax+1
-          do j=0,nymax+1
+!        do i=0,nxmax+1
+!          do j=0,nymax+1
+        do i=1,nxmax
+          do j=1,nymax
+
             topo_avg = 0.0_ip
             ncells = 0
             norm = 0.0_ip
@@ -988,8 +1196,10 @@
               z1=cos(0.5_ip*PI-lat_cc_pd(j)*DEG2RAD)
             endif
 
-            do ii=max(0,i-ipad),min(i+ipad,nxmax+1)
-              do jj=max(0,j-jpad),min(j+jpad,nymax+1)
+!            do ii=max(0,i-ipad),min(i+ipad,nxmax+1)
+!              do jj=max(0,j-jpad),min(j+jpad,nymax+1)
+            do ii=max(1,i-ipad),min(i+ipad,nxmax)
+              do jj=max(1,j-jpad),min(j+jpad,nymax)
                 if (ii.eq.i.and.jj.eq.j)then
                   dist = 0.0_ip
                 else
@@ -1050,7 +1260,8 @@
         enddo
       enddo
       ! Copy the smoothed data onto the main topo array
-      topo_comp(0:nxmax+1,0:nymax+1) = topo_smooth_comp(0:nxmax+1,0:nymax+1)
+!      topo_comp(0:nxmax+1,0:nymax+1) = topo_smooth_comp(0:nxmax+1,0:nymax+1)
+      topo_comp(1:nxmax,1:nymax) = topo_smooth_comp(1:nxmax,1:nymax)
       ! And copy to the MetReader array
       MR_Topo_comp(1:nxmax,1:nymax) = topo_smooth_comp(1:nxmax,1:nymax)
 
@@ -1058,13 +1269,17 @@
       do i = 1,nx_submet
         xin = x_submet_sp(i)
         iidx = floor((xin-lonLL)/de) + 1
-        iidx = max(iidx,0)
-        iidx = min(iidx,nxmax+1)
+!        iidx = max(iidx,0)
+!        iidx = min(iidx,nxmax+1)
+        iidx = max(iidx,1)
+        iidx = min(iidx,nxmax)
         do j = 1,ny_submet
           yin = y_submet_sp(j)
           jidx = floor((yin-latLL)/dn) + 1
-          jidx = max(jidx,0)
-          jidx = min(jidx,nymax+1)
+!          jidx = max(jidx,0)
+!          jidx = min(jidx,nymax+1)
+          jidx = max(jidx,1)
+          jidx = min(jidx,nymax)
           MR_Topo_met(i,j) = topo_comp(iidx,jidx)
           ! Assume anything lower than 0.0 is bathymetry; reset to 0.0
           if (MR_Topo_met(i,j).lt.0.0_sp) MR_Topo_met(i,j) = 0.0_sp
