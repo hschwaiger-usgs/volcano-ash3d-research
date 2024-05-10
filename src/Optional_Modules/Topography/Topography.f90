@@ -99,15 +99,13 @@
       integer :: indx_User4d_XYZGs_Topo
 
       character (len=50)  :: file_topo
+      integer, parameter  :: fid_hdrfile     = 600
+      integer, parameter  :: fid_datfile     = 601
+
       integer             :: topoFormat
       real(kind=ip)       :: rad_smooth
       logical :: useTopo         = .false.
       logical :: useSmoothTopo   = .false.
-
-!      real(kind=ip),dimension(:)       ,allocatable :: lat
-!      real(kind=ip),dimension(:)       ,allocatable :: lon
-!      integer :: nlat
-!      integer :: nlon
 
       integer :: nlat_topo_fullgrid
       integer :: nlon_topo_fullgrid
@@ -122,12 +120,6 @@
       real(kind=dp) :: dlon_topo
       real(kind=dp) :: cleft,cright
       real(kind=sp), dimension(:,:)  ,allocatable :: topo_subgrid
-
-!      real(kind=ip), dimension(:)    ,allocatable :: lat_raw
-!      real(kind=ip), dimension(:)    ,allocatable :: lon_raw
-!      real(kind=ip), dimension(:,:)  ,allocatable :: topo_raw
-!      real(kind=ip) :: dlat
-!      real(kind=ip) :: dlon
 
       ! These are on the computational grid
       real(kind=sp),dimension(:,:)  ,allocatable :: topo_comp ! Used if useTopo=.true.
@@ -163,6 +155,7 @@
       integer           :: ios,ioerr
       character(len=20) :: mod_name
       integer           :: substr_pos
+      logical           :: IsThere
 
       open(unit=10,file=infile,status='old',err=1900)
 
@@ -234,13 +227,29 @@
         read(linebuffer080,*,iostat=ioerr) topoFormat,rad_smooth
         if(topoFormat.eq.1)then
           do io=1,2;if(VB(io).le.verbosity_info)then
-            write(outlog(io),*)"Read topoFormat = 1 (ETOPO1)"
+            write(outlog(io),*)"Read topoFormat = 1 (NetCDF gridded)"
             write(outlog(io),*)"    Read smoothing radius = ",&
                                real(rad_smooth,kind=4)
           endif;enddo
+#ifndef USENETCDF
+        ! If we are here, then we expect to read the netcdf output file.  If netcdf
+        ! not linked, give an error and exit
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)'Expecting to read a netcdf topography file, but the netcdf'
+          write(errlog(io),*)'library is not linked.  Please recompile, linking to'
+          write(errlog(io),*)'netcdf or use gridded binary or ASCII topography data.'
+        endif;enddo
+        stop 1
+#endif
         elseif(topoFormat.eq.2)then
           do io=1,2;if(VB(io).le.verbosity_info)then
-            write(outlog(io),*)"Read topoFormat = 2 (GEBCO08)"
+            write(outlog(io),*)"Read topoFormat = 2 (Gridded binary)"
+            write(outlog(io),*)"    Read smoothing radius = ",&
+                               real(rad_smooth,kind=4)
+          endif;enddo
+        elseif(topoFormat.eq.3)then
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)"Read topoFormat = 3 (ESRI ASCII)"
             write(outlog(io),*)"    Read smoothing radius = ",&
                                real(rad_smooth,kind=4)
           endif;enddo
@@ -248,9 +257,19 @@
         ! And read the file name
         read(10,'(a80)',iostat=ios,err=2010)linebuffer080
         read(linebuffer080,*) file_topo
+        file_topo = trim(adjustl(file_topo))
         do io=1,2;if(VB(io).le.verbosity_info)then           
           write(outlog(io),*)"    Read file_topo = ",file_topo
         endif;enddo
+
+        inquire( file=file_topo, exist=IsThere )
+        if(.not.IsThere)then
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)"ERROR: Cannot find topography file"
+            write(errlog(io),*)"     ",file_topo
+          endif;enddo
+          stop 1
+        endif
 
         ! Turn on flag in MetReader library for topography
         MR_useTopo = .true.
@@ -412,7 +431,25 @@
         write(outlog(io),*)"min max lat = ",real(minlat_Topo,kind=4),real(maxlat_Topo,kind=4)
       endif;enddo
 
-      call Load_Topo_Gridded_NC
+
+      if(topoFormat.eq.1)then
+#ifdef USENETCDF
+        call Load_Topo_Gridded_NC
+#endif
+      elseif(topoFormat.eq.2)then
+        call Load_Topo_Gridded_bin
+      elseif(topoFormat.eq.3)then
+        !call Load_Topo_ESRI_ASCII
+      else
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"ERROR: Topography input format not recognized."
+          write(errlog(io),*)"    Available options:"
+          write(errlog(io),*)"      Topo Format ID = 1 : NetCDF"
+          write(errlog(io),*)"      Topo Format ID = 2 : Gridded binary"
+          write(errlog(io),*)"      Topo Format ID = 3 : ESRI ASCII"
+        endif;enddo
+        stop 1
+      endif
 
       call Interp_Topo
 
@@ -425,6 +462,8 @@
 !    Load_Topo_Gridded_NC
 !
 !##############################################################################
+
+#ifdef USENETCDF
 
       subroutine Load_Topo_Gridded_NC
 
@@ -521,6 +560,9 @@
         ! Need to use a special reader for this
         write(*,*)"Looks like GEBCO 08"
         write(*,*)"Calling special reader"
+        nSTAT = nf90_close(ncid)
+        call Load_Topo_Gridded_NC_GEBCO08
+        return
       endif
 
       ! get the dimension information for lon (or x)
@@ -573,7 +615,7 @@
         stop 1
       endif
       dlon_topo = lon_topo_fullgrid(2) - lon_topo_fullgrid(1)
-      if(dlon_topo.lt.0.0_ip)then
+      if(dlon_topo.lt.0.0_dp)then
         x_inverted = .true.
         dlon_topo = abs(dlon_topo)
       endif
@@ -804,160 +846,663 @@
         stop 1
       endif
 
+      nSTAT = nf90_close(ncid)
+
       end subroutine Load_Topo_Gridded_NC
+#endif
 
 !##############################################################################
 !
-!    load_topo
+!    Load_Topo_Gridded_NC_GEBCO08
 !
 !##############################################################################
+#ifdef USENETCDF
 
-!      subroutine Load_Topo
-!
-!      use netcdf
-!
-!      implicit none
-!
-!      integer :: nSTAT
-!      integer :: ncid
-!
-!      integer :: topo_var_id       = 0
-!
-!      integer(kind=2), dimension(:)   ,allocatable :: dum1d_short
-!      integer(kind=2), dimension(:,:) ,allocatable :: dum2d_short
-!
-!      integer :: nlat_tot,nlon_tot
-!      integer :: start_lat_idx,start_lon_idx,end_lon_idx
-!      integer :: ilat,ilon,idx
-!
-!      do io=1,2;if(VB(io).le.verbosity_info)then
-!        write(outlog(io),*)"Inside load_topo"
-!      endif;enddo
-!        ! Check to see if the domain straddles the anti-meridian
-!      if (minlon_Topo.lt.180.0_ip.and.maxlon_Topo.gt.180.0_ip)then
-!        lon_shift_flag = 1
+      subroutine Load_Topo_Gridded_NC_GEBCO08
+
+      use netcdf
+
+      implicit none
+
+      integer :: nSTAT
+      integer :: ncid
+
+      integer :: topo_var_id       = 0
+
+      integer(kind=2), dimension(:)   ,allocatable :: dum1d_short
+      integer(kind=2), dimension(:,:) ,allocatable :: dum2d_short
+
+      integer :: nlat_tot,nlon_tot
+      integer :: start_lat_idx,start_lon_idx,end_lon_idx
+      integer :: ilat,ilon,idx
+
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Inside load_topo"
+      endif;enddo
+        ! Check to see if the domain straddles the anti-meridian
+      if (minlon_Topo.lt.180.0_ip.and.maxlon_Topo.gt.180.0_ip)then
+        lon_shift_flag = 1
+      else
+        lon_shift_flag = 0
+      endif
+
+      nSTAT = nf90_open(adjustl(trim(file_topo)),NF90_NOWRITE,ncid)
+      if(nSTAT.ne.0)then
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)'Could not open -',adjustl(trim(file_topo)),'-'
+          write(errlog(io),*)NF90_NOWRITE,ncid
+          write(errlog(io),*)'Exiting'
+        endif;enddo
+        stop 1
+      endif
+      nSTAT = nf90_inq_varid(ncid,'z',topo_var_id)
+
+      ! GEBCO 08 (30-second global topo/batho)
+      nlat_topo_fullgrid = 21600
+      nlon_topo_fullgrid = 43200
+      dlon_topo = 1.0_dp/120.0_dp
+      dlat_topo = 1.0_dp/120.0_dp
+      start_lat_idx = int((minlat_Topo+90.0_ip)/dlon_topo)
+      start_lat_idx = nlat_topo_fullgrid-start_lat_idx
+
+      ! Define the sub-grid holding the topo data we need
+      nlon_topo_subgrid = int((maxlon_Topo-minlon_Topo)/dlon_topo) + 4
+      nlat_topo_subgrid = int((maxlat_Topo-minlat_Topo)/dlat_topo) + 4
+      allocate(lon_topo_subgrid(nlon_topo_subgrid))
+      allocate(lat_topo_subgrid(nlat_topo_subgrid))
+      allocate(topo_subgrid(nlon_topo_subgrid,nlat_topo_subgrid))
+      ! GEBCO08 has data that start at -180, so shift 0 accordingly
+      if(minlon_Topo.lt.0.0_dp)then
+        start_lon_idx = int((minlon_Topo+180.0_dp)/dlon_topo)
+      elseif(minlon_Topo.ge.0.0_dp.and.minlon_Topo.lt.180.0_dp)then
+        start_lon_idx = int((minlon_Topo+180.0_dp)/dlon_topo)
+      elseif(minlon_Topo.ge.180.0_dp)then
+        start_lon_idx = int((minlon_Topo-180.0_dp)/dlon_topo)
+      endif
+
+!      if(lon_shift_flag.eq.0)then
+!        start_lon_idx = int((minlon_Topo-180.0_dp)/dlon_topo)
 !      else
-!        lon_shift_flag = 0
+!        start_lon_idx = int((minlon_Topo+180.0_dp)/dlon_topo)
 !      endif
+
+      do ilon=1,nlon_topo_subgrid
+        lon_topo_subgrid(ilon) = real(start_lon_idx+ilon-1,kind=ip)*dlon_topo &
+                         - 0.5_dp*dlon_topo - 180.0_dp
+      enddo
+      ! now shift the lon values if they start in the western hemisphere
+
+      if(lon_shift_flag.eq.0)then
+        end_lon_idx = nlon_topo_subgrid
+      else
+        end_lon_idx = int((180.0_dp-minlon_Topo)/dlon_topo)
+      endif
+
+      ! GEBCO_08 start at the NW corner of the grid
+      ! (89d59'45"N,179d59;45"W) and advances eastward, then
+      ! southwards in one long string.
+      allocate(dum1d_short(nlon_topo_fullgrid))
+      do ilat=1,nlat_topo_subgrid
+        ! Get the index point of the start of the line at the right
+        ! latitude
+        lat_topo_subgrid(ilat)=(real(nlat_topo_fullgrid-(start_lat_idx-ilat+1),kind=ip)*dlat_topo &
+                       -0.5_dp*dlat_topo)-90.0_dp
+        idx = (start_lat_idx-ilat)*nlon_topo_fullgrid +1
+        ! Get the full row of topo values that encircle the globe
+!        write(*,*)ilat,idx,nlon_topo_fullgrid
+        nSTAT = nf90_get_var(ncid,topo_var_id,dum1d_short, &
+                           start = (/idx/),        &
+                           count = (/nlon_topo_fullgrid/))
+        ! Now find just the subset that we need
+        if(lon_shift_flag.eq.0)then
+          topo_subgrid(1:nlon_topo_subgrid,ilat)=real(dum1d_short(start_lon_idx:start_lon_idx+nlon_topo_subgrid-1),kind=sp)
+        else
+          ! Copy the part west of the anti-meridian
+          topo_subgrid(1:end_lon_idx,ilat) = real(dum1d_short(start_lon_idx:start_lon_idx+end_lon_idx-1),kind=sp)
+          ! And copy the part wrapped over the anti-meridian
+!          write(*,*)end_lon_idx,nlon_topo_subgrid
+          topo_subgrid(end_lon_idx+1:nlon_topo_subgrid,ilat) = real(dum1d_short(1:nlon_topo_subgrid-end_lon_idx),kind=sp)
+        endif
+      enddo
+      deallocate(dum1d_short)
+      nSTAT = nf90_close(ncid)
+
+      end subroutine Load_Topo_Gridded_NC_GEBCO08
+#endif
+
+!##############################################################################
 !
-!      nSTAT = nf90_open(adjustl(trim(file_topo)),NF90_NOWRITE,ncid)
-!      if(nSTAT.ne.0)then
-!        do io=1,2;if(VB(io).le.verbosity_error)then
-!          write(errlog(io),*)'Could not open -',adjustl(trim(file_topo)),'-'
-!          write(errlog(io),*)NF90_NOWRITE,ncid
-!          write(errlog(io),*)'Exiting'
-!        endif;enddo
-!        stop 1
-!      endif
-!      nSTAT = nf90_inq_varid(ncid,'z',topo_var_id)
+!    Load_Topo_Gridded_bin
 !
-!      if(topoFormat.eq.1)then
-!        ! ETOPO1 (1-minute global topo/batho)
-!        nlat_tot = 10800 ! -89.99167          to  89.99167
-!        nlon_tot = 21600 ! -179.991666666667  to 179.991666666667
-!        dlon = 1.0_ip/60.0_ip
-!        dlat = 1.0_ip/60.0_ip
-!        start_lat_idx = int((minlat_Topo+90.0_ip)/dlon)
-!      elseif(topoFormat.eq.2)then
-!        ! GEBCO 08 (30-second global topo/batho)
-!        nlat_tot = 21600
-!        nlon_tot = 43200
-!        dlon = 1.0_ip/120.0_ip
-!        dlat = 1.0_ip/120.0_ip
-!        start_lat_idx = int((minlat_Topo+90.0_ip)/dlon)
-!        start_lat_idx = nlat_tot-start_lat_idx
+!##############################################################################
+
+      subroutine Load_Topo_Gridded_bin
+
+      use global_param,  only : &
+         IsLitEnd
+
+      use Ash3d_Netcdf_IO
+
+      implicit none
+
+      character (len=50)  :: file_topo_root
+      character (len=50)  :: file_topo_hdr
+      logical             :: IsThere1,IsThere2
+
+      integer :: substr_pos,substr_pos2
+
+      integer(kind=2), dimension(:)   ,allocatable :: dum1d_short
+      integer(kind=2), dimension(:,:) ,allocatable :: dum2d_short
+
+      real(kind=sp)   ,dimension(:)   ,allocatable :: temp1d_sp
+      real(kind=dp)   ,dimension(:)   ,allocatable :: temp1d_dp
+
+      integer :: start_lat_idx,start_lon_idx
+      integer :: end_lat_idx,end_lon_idx
+      integer :: ilat,ilon
+
+      logical :: y_inverted     = .false.
+      logical :: wrapgrid       = .false.
+
+      integer(kind=2) ,dimension(:,:) ,allocatable :: temp2d_intS
+      integer(kind=4) ,dimension(:,:) ,allocatable :: temp2d_intL
+      real(kind=sp)   ,dimension(:,:) ,allocatable :: temp2d_sp
+      real(kind=dp)   ,dimension(:,:) ,allocatable :: temp2d_dp
+      integer :: i,ict, ileft(2),iright(2)   !if wrapgrid=.true. ict=2 and left & iright have 2 values, otherwise 1
+      integer :: iistart(2),iicount(2)     !if (wrapgrid), iistart(1)=istart, iistart(2)=1
+
+      real(kind=dp) :: startx_topo, starty_topo
+      real(kind=dp) :: dy
+
+      character(len=80) :: linebuffer080
+      character(len=50) :: linebuffer050
+      character         :: testkey
+      integer           :: iostatus
+      integer           :: ioerr
+      character(len=120):: iomessage
+      character(len=20) :: key_name
+      logical :: IsLitEnd_topo
+      logical :: IsInt_topo
+      integer :: nlat_tot
+      integer :: nlon_tot
+      integer :: nbits
+      integer :: nodata_int
+      real(kind=sp) :: nodata_sp
+      real(kind=dp) :: ULx_topo
+      real(kind=dp) :: ULy_topo
+      real(kind=dp) :: LLx_topo
+      real(kind=dp) :: LLy_topo
+      logical :: key_found
+
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Inside Load_Topo_Gridded_bin"
+      endif;enddo
+
+      ! Existance of topo file was verified earlier, now look for header; searching for either *HDR or *hdr
+      ! First, find the root-extension deliminator '.'.  Two possibilities here:
+      !  One or more delimitors -> strip off extension and test for hdr or HDR
+      !  No delimitor  -> add hdr or HDR to root and test
+      substr_pos = index(file_topo,'.',back=.true.)
+      if(substr_pos.gt.0)then
+        file_topo_root = file_topo(1:substr_pos-1)
+      else
+        file_topo_root = file_topo
+      endif
+      file_topo_hdr = trim(adjustl(file_topo_root)) // '.hdr'
+      inquire( file=file_topo_hdr, exist=IsThere1 )
+      if(.not.IsThere1)then
+        file_topo_hdr = trim(adjustl(file_topo_root)) // '.HDR'
+        inquire( file=file_topo_hdr, exist=IsThere2 )
+        if(.not.IsThere2)then
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)"ERROR: Cannot find topography hdr file, or HDR file"
+            write(errlog(io),*)"     ",file_topo_hdr
+          endif;enddo
+          stop 1
+        endif
+      endif
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Found header file for binary topo data. ",file_topo_hdr
+      endif;enddo
+
+      ! Opening header file
+      open(unit=fid_hdrfile,file=file_topo_hdr,status='old',action='read',err=9001)
+      ! First, look for "BYTEORDER'
+      substr_pos = -1
+      key_name = 'BYTEORDER'
+      key_found = .false.
+      read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      do while(iostatus.eq.0)
+        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
+        if(substr_pos.gt.0)then
+          key_found = .true.
+          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          ! Found key, now read it
+          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          linebuffer050 = trim(adjustl(linebuffer050))
+          read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)testkey
+          if(testkey.eq.'M'.or.testkey.eq.'B')then
+            ! data is in Motorola or Big-Endian format
+            IsLitEnd_topo = .false.
+          elseif(testkey.eq.'L')then
+            ! data is in Little-Endian format
+            IsLitEnd_topo = .true.
+          else
+            ! Cannot determine endian
+            do io=1,2;if(VB(io).le.verbosity_info)then
+              write(outlog(io),*)"Found byteorder, but cannot interpret endian.",linebuffer050
+              write(outlog(io),*)"Setting endian-ness to local machine."
+            endif;enddo
+            IsLitEnd_topo = IsLitEnd
+          endif
+        endif
+        read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      enddo    
+
+      ! NROWS
+      rewind(fid_hdrfile)
+      substr_pos = -1
+      key_name = 'NROWS'
+      key_found = .false.
+      read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      do while(iostatus.eq.0)
+        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
+        if(substr_pos.gt.0)then
+          key_found = .true.
+          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          ! Found key, now read it
+          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          linebuffer050 = trim(adjustl(linebuffer050))
+          read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)nlon_topo_fullgrid
+          linebuffer050 = "Reading line from topo header file, NROWS"
+          if(iostatus.ne.0) call FileIO_Error_Handler(iostatus,linebuffer050,linebuffer080,iomessage)
+        endif
+        read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      enddo
+
+      !NCOLS
+      rewind(fid_hdrfile)
+      substr_pos = -1
+      key_name = 'NCOLS'
+      key_found = .false.
+      read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      do while(iostatus.eq.0)
+        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
+        if(substr_pos.gt.0)then
+          key_found = .true.
+          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          ! Found key, now read it
+          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          linebuffer050 = trim(adjustl(linebuffer050))
+          read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)nlat_topo_fullgrid
+          linebuffer050 = "Reading line from topo header file, NCOLS"
+          if(iostatus.ne.0) call FileIO_Error_Handler(iostatus,linebuffer050,linebuffer080,iomessage)
+        endif
+        read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      enddo
+
+      !NBITS
+      rewind(fid_hdrfile)
+      substr_pos = -1
+      key_name = 'NBITS'
+      key_found = .false.
+      read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      do while(iostatus.eq.0)
+        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
+        if(substr_pos.gt.0)then
+          key_found = .true.
+          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          ! Found key, now read it
+          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          linebuffer050 = trim(adjustl(linebuffer050))
+          read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)nbits
+          linebuffer050 = "Reading line from topo header file, NBITS"
+          if(iostatus.ne.0) call FileIO_Error_Handler(iostatus,linebuffer050,linebuffer080,iomessage)
+          if(nbits.eq.16)then
+            IsInt_topo = .true.
+          elseif(nbits.eq.32)then
+            IsInt_topo = .false.
+          else
+            do io=1,2;if(VB(io).le.verbosity_error)then
+              write(errlog(io),*)"ERROR: Cannot find binary data type of topo file."
+              write(errlog(io),*)"       Expecting NBITS = 16 for signed integer or"
+              write(errlog(io),*)"                 NBITS = 32 for floating point"
+              write(errlog(io),*)"       Read NBITS = ",nbits
+            endif;enddo
+            stop 1
+          endif
+        endif
+        read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      enddo
+
+      !NODATA
+      rewind(fid_hdrfile)
+      nodata_int = -9999
+      nodata_sp  = -9999.0_sp
+      substr_pos = -1
+      key_name = 'NODATA'
+      key_found = .false.
+      read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      do while(iostatus.eq.0)
+        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
+        if(substr_pos.gt.0)then
+          key_found = .true.
+          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          ! Found key, now read it
+          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          linebuffer050 = trim(adjustl(linebuffer050))
+          if(IsInt_topo)then
+            read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)nodata_int
+          else
+            read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)nodata_sp
+          endif
+          linebuffer050 = "Reading line from topo header file, NODATA"
+          if(iostatus.ne.0) call FileIO_Error_Handler(iostatus,linebuffer050,linebuffer080,iomessage)
+        endif
+        read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      enddo
+
+      !XDIM or DX or DLON
+      rewind(fid_hdrfile)
+      substr_pos = -1
+      key_name = 'XDIM'
+      key_found = .false.
+      read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      do while(iostatus.eq.0)
+        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
+        if(substr_pos.gt.0)then
+          key_found = .true.
+          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          ! Found key, now read it
+          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          linebuffer050 = trim(adjustl(linebuffer050))
+          read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)dlon_topo
+          linebuffer050 = "Reading line from topo header file, XDIM"
+          if(iostatus.ne.0) call FileIO_Error_Handler(iostatus,linebuffer050,linebuffer080,iomessage)
+        endif
+        read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      enddo
+
+      !YDIM or DY or DLAT
+      rewind(fid_hdrfile)
+      substr_pos = -1
+      key_name = 'YDIM'
+      key_found = .false.
+      read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      do while(iostatus.eq.0)
+        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
+        if(substr_pos.gt.0)then
+          key_found = .true.
+          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          ! Found key, now read it
+          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          linebuffer050 = trim(adjustl(linebuffer050))
+          read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)dlat_topo
+          linebuffer050 = "Reading line from topo header file, YDIM"
+          if(iostatus.ne.0) call FileIO_Error_Handler(iostatus,linebuffer050,linebuffer080,iomessage)
+        endif
+        read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      enddo
+
+      !ULYMAP or ULY or ULLAT
+      y_inverted = .false.  ! initialize
+      rewind(fid_hdrfile)
+      substr_pos = -1
+      key_name = 'ULYMAP'
+      key_found = .false.
+      read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      do while(iostatus.eq.0)
+        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
+        if(substr_pos.gt.0)then
+          key_found = .true.
+          ! If this key has been found, the upper-left is the start coordinate
+          y_inverted = .true.
+          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          ! Found key, now read it
+          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          linebuffer050 = trim(adjustl(linebuffer050))
+          read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)starty_topo
+          linebuffer050 = "Reading line from topo header file, ULYMAP"
+          if(iostatus.ne.0) call FileIO_Error_Handler(iostatus,linebuffer050,linebuffer080,iomessage)
+        endif
+        read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      enddo
+
+      if(.not.y_inverted)then
+        ! If we didn't find ULYMAP or something analogous above, then look for the lower-left LL
+        !LLYMAP or LLY or LLLAT
+        rewind(fid_hdrfile)
+        substr_pos = -1
+        key_name = 'LLYMAP'
+        key_found = .false.
+        read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+        do while(iostatus.eq.0)
+          substr_pos = index(linebuffer080,trim(adjustl(key_name)))
+          if(substr_pos.gt.0)then
+            key_found = .true.
+            ! If this key has been found, the upper-left is the start coordinate
+            y_inverted = .true.
+            substr_pos2 = index(linebuffer080(substr_pos:),' ')
+            ! Found key, now read it
+            read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+            linebuffer050 = trim(adjustl(linebuffer050))
+            read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)starty_topo
+            linebuffer050 = "Reading line from topo header file, LLYMAP"
+            if(iostatus.ne.0) call FileIO_Error_Handler(iostatus,linebuffer050,linebuffer080,iomessage)
+          endif
+          read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+        enddo
+      endif
+
+      !ULXMAP or ULX or ULLON of LLXMAP or LLX or LLLON
+      rewind(fid_hdrfile)
+      substr_pos = -1
+      key_name = 'ULXMAP'
+      key_found = .false.
+      read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      do while(iostatus.eq.0)
+        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
+        if(substr_pos.gt.0)then
+          key_found = .true.
+          ! If this key has been found, the upper-left is the start coordinate
+          y_inverted = .true.
+          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          ! Found key, now read it
+          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          linebuffer050 = trim(adjustl(linebuffer050))
+          read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)startx_topo
+          linebuffer050 = "Reading line from topo header file, ULXMAP"
+          if(iostatus.ne.0) call FileIO_Error_Handler(iostatus,linebuffer050,linebuffer080,iomessage)
+        endif
+        read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
+      enddo
+
+      close(fid_hdrfile)
+
+      ! Now set up grids 
+      allocate(lon_topo_fullgrid(1:nlon_topo_fullgrid))
+      allocate(lat_topo_fullgrid(1:nlat_topo_fullgrid))
+      do ilon=1,nlon_topo_fullgrid
+        lon_topo_fullgrid(ilon) = startx_topo + (ilon-1)*dlon_topo
+      enddo
+      if(y_inverted)then
+        dy = -1.0_dp * dlat_topo
+      else
+        dy = dlat_topo
+      endif
+      do ilat=1,nlat_topo_fullgrid
+        lat_topo_fullgrid(ilat) = starty_topo + (ilat-1)*dy
+      enddo
+
+      ! Double-check that this lon/lat range suffices for the requested computational grid
+      nlon_topo_subgrid = floor((maxlon_Topo-minlon_Topo)/dlon_topo)
+      nlat_topo_subgrid = int((maxlat_Topo-minlat_Topo)/dlat_topo) 
+
+      if(minlon_Topo.lt.lon_topo_fullgrid(1)-0.5_dp*dlon_topo)then
+        minlon_Topo = minlon_Topo + 360.0_dp
+        maxlon_Topo = maxlon_Topo + 360.0_dp
+      endif
+      start_lon_idx = -1
+      cleft = lon_topo_fullgrid(1)-0.5_dp*dlon_topo
+      do ilon=1,nlon_topo_fullgrid
+        cright = lon_topo_fullgrid(ilon)+0.5_dp*dlon_topo
+        if(minlon_Topo.ge.cleft.and. &
+           minlon_Topo.lt.cright)then
+          start_lon_idx = ilon
+        endif
+        cleft = cright
+      enddo
+      if(start_lon_idx.lt.1.or.start_lon_idx.gt.nlon_topo_fullgrid)then
+        ! Couldn't find start x
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Couldn't find start x of topo sub-grid"
+        endif;enddo
+        stop 1
+      endif
+      if(start_lon_idx+nlon_topo_subgrid.gt.nlon_topo_fullgrid)then
+        wrapgrid = .true.
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"ERROR: Cannot use grid-wrapping for binary data, at the moment."
+        endif;enddo
+        stop 1
+      else
+        end_lon_idx = start_lon_idx+nlon_topo_subgrid
+      endif
+      !! Load data variables for just the subgrid defined above
+      !if(wrapgrid)then
+      !  ict        = 2
+      !    ! index on the topo-sub-grid
+      !  ileft(1)   = 1
+      !  iright(1)  = nlon_topo_fullgrid - start_lon_idx
+      !  iistart(1) = start_lon_idx
+      !  iicount(1) = nlon_topo_fullgrid - start_lon_idx
+      !  ileft(2)   = iright(1) + 1
+      !  iright(2)  = nlon_topo_subgrid
+      !  iistart(2) = 1
+      !  iicount(2) = nlon_topo_subgrid - iicount(1)
+      !else
+      !  ict        = 1
+      !  ileft(1)   = 1
+      !  iright(1)  = nlon_topo_subgrid
+      !  iistart(1) = start_lon_idx
+      !  iicount(1) = nlon_topo_subgrid
+      !endif
+
+      start_lat_idx = -1
+      end_lat_idx   = -1
+      cleft = lat_topo_fullgrid(1)-0.5_dp*dy
+      do ilat=1,nlat_topo_fullgrid
+        cright = lat_topo_fullgrid(ilat)+0.5_dp*dy
+        if(y_inverted)then
+          if(minlat_Topo.lt.cleft.and.minlat_Topo.ge.cright)then
+            start_lat_idx = ilat
+          endif
+          if(maxlat_Topo.le.cleft.and.maxlat_Topo.gt.cright)then
+            end_lat_idx = ilat
+          endif
+        else
+          if(minlat_Topo.ge.cleft.and.minlat_Topo.lt.cright)then
+            start_lat_idx = ilat
+          endif
+          if(maxlat_Topo.gt.cleft.and.maxlat_Topo.le.cright)then
+            end_lat_idx = ilat
+          endif
+        endif
+        cleft = cright
+      enddo
+      if(start_lat_idx.lt.1.or.start_lat_idx.gt.nlat_topo_fullgrid)then
+        ! Couldn't find start y
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Couldn't find start y of topo sub-grid"
+        endif;enddo
+        stop 1
+      endif
+      if(end_lat_idx.lt.1.or.end_lat_idx.gt.nlat_topo_fullgrid)then
+        ! Couldn't find end y
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Couldn't find end y of topo sub-grid"
+        endif;enddo
+        stop 1
+      endif
+
+      write(*,*)start_lat_idx,end_lat_idx
+      write(*,*)start_lon_idx,end_lon_idx
+
+
+      ! Define the sub-grid holding the topo data we need
+      write(*,*)"Allocating arrays ",nlon_topo_subgrid,nlat_topo_subgrid
+      allocate(lon_topo_subgrid(nlon_topo_subgrid))
+      allocate(lat_topo_subgrid(nlat_topo_subgrid))
+      allocate(topo_subgrid(nlon_topo_subgrid,nlat_topo_subgrid))
+
+      lon_topo_subgrid(1:nlon_topo_subgrid) = lon_topo_fullgrid(start_lon_idx:end_lon_idx-1)
+!      if(y_inverted)then
+!        do ilat=1,nlat_topo_subgrid
+!          
+!        enddo
+!      else
+        lat_topo_subgrid(1:nlat_topo_subgrid) = lat_topo_fullgrid(start_lat_idx:end_lat_idx-1)
 !      endif
-!      ! Define the sub-grid holding the topo data we need
-!      nlon = int((maxlon_Topo-minlon_Topo)/dlon) + 4
-!      nlat = int((maxlat_Topo-minlat_Topo)/dlat) + 4
-!      allocate(lon_raw(nlon))
-!      allocate(lat_raw(nlat))
-!      allocate(topo_raw(nlon,nlat))
-!      ! ETOPO1 and GEBCO08 have data that start at -180, so shift 0 accordingly
-!      if(minlon_Topo.lt.0.0_ip)then
-!        start_lon_idx = int((minlon_Topo+180.0_ip)/dlon)
-!      elseif(minlon_Topo.ge.0.0_ip.and.minlon_Topo.lt.180.0_ip)then
-!        start_lon_idx = int((minlon_Topo+180.0_ip)/dlon)
-!      elseif(minlon_Topo.ge.180.0_ip)then
-!        start_lon_idx = int((minlon_Topo-180.0_ip)/dlon)
+
+       write(*,*)lon_topo_subgrid(1),lon_topo_subgrid(nlon_topo_subgrid)
+       write(*,*)lat_topo_subgrid(1),lat_topo_subgrid(nlat_topo_subgrid)
+
+
+!      ! GEBCO08 has data that start at -180, so shift 0 accordingly
+!      if(minlon_Topo.lt.0.0_dp)then
+!        start_lon_idx = int((minlon_Topo+180.0_dp)/dlon_topo)
+!      elseif(minlon_Topo.ge.0.0_dp.and.minlon_Topo.lt.180.0_dp)then
+!        start_lon_idx = int((minlon_Topo+180.0_dp)/dlon_topo)
+!      elseif(minlon_Topo.ge.180.0_dp)then
+!        start_lon_idx = int((minlon_Topo-180.0_dp)/dlon_topo)
 !      endif
 !
 !!      if(lon_shift_flag.eq.0)then
-!!        start_lon_idx = int((minlon_Topo-180.0_ip)/dlon)
+!!        start_lon_idx = int((minlon_Topo-180.0_dp)/dlon_topo)
 !!      else
-!!        start_lon_idx = int((minlon_Topo+180.0_ip)/dlon)
+!!        start_lon_idx = int((minlon_Topo+180.0_dp)/dlon_topo)
 !!      endif
 !
-!      do ilon=1,nlon
-!        lon_raw(ilon) = real(start_lon_idx+ilon-1,kind=ip)*dlon &
-!                         - 0.5_ip*dlon - 180.0_ip
+!      do ilon=1,nlon_topo_subgrid
+!        lon_topo_subgrid(ilon) = real(start_lon_idx+ilon-1,kind=ip)*dlon_topo &
+!                         - 0.5_dp*dlon_topo - 180.0_dp
 !      enddo
 !      ! now shift the lon values if they start in the western hemisphere
 !
 !      if(lon_shift_flag.eq.0)then
-!        end_lon_idx = nlon
+!        end_lon_idx = nlon_topo_subgrid
 !      else
-!        end_lon_idx = int((180.0_ip-minlon_Topo)/dlon)
+!        end_lon_idx = int((180.0_dp-minlon_Topo)/dlon_topo)
 !      endif
 !
-!      if(topoFormat.eq.1)then
-!        ! Since this file is about 450Mb, just load the whole thing
-!        allocate(dum2d_short(nlon_tot,nlat_tot))
-!        do ilat=1,nlat
-!          lat_raw(ilat) = real(start_lat_idx+ilat-1,kind=ip)*dlat &
-!                           - 0.5_ip*dlat - 90.0_ip
-!        enddo
-!          ! load the whole array
-!        nSTAT = nf90_get_var(ncid,topo_var_id,dum2d_short)
-!        do ilat=1,nlat
-!          ! Get the index point of the start of the line
-!          idx = start_lat_idx+ilat - 1
-!          if(lon_shift_flag.eq.0)then
-!            topo_raw(:,ilat) = real(dum2d_short(start_lon_idx:start_lon_idx+nlon-1,idx),kind=ip)
-!          else
-!            ! Copy the part west of the anti-meridian
-!            topo_raw(1:end_lon_idx,ilat) = real(dum2d_short(start_lon_idx:start_lon_idx+end_lon_idx-1,idx),kind=ip)
-!            ! And copy the part wrapped over the anti-meridian
-!            topo_raw(end_lon_idx+1:nlon,ilat) = real(dum2d_short(1:nlon-end_lon_idx,idx),kind=ip)
-!          endif
-!        enddo
-!
-!        deallocate(dum2d_short)
-!      elseif(topoFormat.eq.2)then
-!        ! GEBCO_08 start at the NW corner of the grid
-!        ! (89d59'45"N,179d59;45"W) and advances eastward, then
-!        ! southwards in one long string.
-!        allocate(dum1d_short(nlon_tot))
-!        do ilat=1,nlat
-!          ! Get the index point of the start of the line at the right
-!          ! latitude
-!          lat_raw(ilat)=(real(nlat_tot-(start_lat_idx-ilat+1),kind=ip)*dlat &
-!                         -0.5_ip*dlat)-90.0_ip
-!          idx = (start_lat_idx-ilat)*nlon_tot +1
-!          ! Get the full row of topo values that encircle the globe
-!          nSTAT = nf90_get_var(ncid,topo_var_id,dum1d_short, &
-!                             start = (/idx/),        &
-!                             count = (/nlon_tot/))
-!          ! Now find just the subset that we need
-!          if(lon_shift_flag.eq.0)then
-!            topo_raw(1:nlon,ilat)=real(dum1d_short(start_lon_idx:start_lon_idx+nlon-1),kind=ip)
-!          else
-!            ! Copy the part west of the anti-meridian
-!            topo_raw(1:end_lon_idx,ilat) = real(dum1d_short(start_lon_idx:start_lon_idx+end_lon_idx-1),kind=ip)
-!            ! And copy the part wrapped over the anti-meridian
-!            topo_raw(end_lon_idx+1:nlon,ilat) = real(dum1d_short(1:nlon-end_lon_idx),kind=ip)
-!          endif
-!        enddo
-!        deallocate(dum1d_short)
-!      else
-!        do io=1,2;if(VB(io).le.verbosity_error)then
-!          write(errlog(io),*)"topoFormat must equal 1 or 2."
-!        endif;enddo
-!        stop 1
-!      endif
-!      nSTAT = nf90_close(ncid)
-!
-!      end subroutine Load_Topo
+!      ! GEBCO_08 start at the NW corner of the grid
+!      ! (89d59'45"N,179d59;45"W) and advances eastward, then
+!      ! southwards in one long string.
+!      allocate(dum1d_short(nlon_topo_fullgrid))
+!      do ilat=1,nlat_topo_subgrid
+!        ! Get the index point of the start of the line at the right
+!        ! latitude
+!        lat_topo_subgrid(ilat)=(real(nlat_topo_fullgrid-(start_lat_idx-ilat+1),kind=ip)*dlat_topo &
+!                       -0.5_dp*dlat_topo)-90.0_dp
+!        idx = (start_lat_idx-ilat)*nlon_topo_fullgrid +1
+
+
+
+
+
+
+      stop 4
+
+      ! Error traps (starting with 9000)
+      ! For this subroutine, the 100's position refers to block # of control file
+
+9001  do io=1,2;if(VB(io).le.verbosity_error)then
+        write(errlog(io),*)  'error: cannot open header file: ',file_topo_hdr
+        write(errlog(io),*)  'Program stopped'
+      endif;enddo
+      stop 1
+
+      end subroutine Load_Topo_Gridded_bin
 
 !##############################################################################
 !
