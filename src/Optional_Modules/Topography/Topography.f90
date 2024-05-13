@@ -986,7 +986,7 @@
          IsLitEnd
 
       use Ash3d_Binary_IO, only : &
-         LitEnd_2int
+         LitEnd_2int,LitEnd_4real
 
       implicit none
 
@@ -1499,7 +1499,7 @@
               ! Need to swap endian
               do ilon=1,nlon_topo_subgrid
                 temp1_sp = temp1dsub_sp(ilon)
-                !temp2_sp = LitEnd_4real(IsLitEnd_topo,temp1_sp)
+                temp2_sp = LitEnd_4real(IsLitEnd_topo,temp1_sp)
                 if(temp2_sp.eq.nodata_sp)temp2_sp=0.0_sp    ! Reset no-data to 0
                 topo_subgrid(ilon,nlat_topo_subgrid-ilat+1) = temp2_sp
               enddo
