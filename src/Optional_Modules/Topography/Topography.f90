@@ -1,85 +1,126 @@
 !*******************************************************************************
-!# Topography
-!#  Topofile format must be one of
-!#    1 : Gridded lon/lat (netcdf)
-!#        ETOPO : https://www.ncei.noaa.gov/products/etopo-global-relief-model
-!#          ETOPO 1 (deprecated)
-!#           lon double
-!#           lat float
-!#           z(lat,lon) short (m)
-!#            60 arcsec in one file (446 Mb)
-!#          ETOPO 2022 (netcdf whole or subset)
-!#           lon double
-!#           lat double
-!#           z(lat,lon) float (m)
-!#            15 arcsec in 15deg tiles (~20 Mb each)
-!#            30 arcsec in 1 file (1.6 Gb)
-!#            60 arcsec in 1 file (457 Mb)
-!#        GEBCO : https://www.gebco.net/
-!#          GEBCO 08 (deprecated)
-!#           x_range double
-!#           y_range double
-!#           z(xysize) short (m)
-!#            30 arcsec in one file (1.8 Gb)
-!#          GEBCO 14 (deprecated)
-!#           lon double
-!#           lat double
-!#           elevation(lat,lon) short (m)
-!#            30 arcsec in one file (1.8 Gb)
-!#          GEBCO 2023 (netcdf whole or subset)
-!#           lon double
-!#           lat double
-!#           elevation(lat,lon) short (m)
-!#            15 arcsec in 1 file (7.0 Gb for global)
-!#
-!#    2 : Gridded Binary
-!#        NOAA Globe (1-km/30 arcsec) https://www.ngdc.noaa.gov/mgg/topo/globe.html
-!#          16 tiles of binary elevation data
-!#           10800 col by 6000 row (-50->50lat) or 4800 or polar
-!#           signed 16 bit integer binary (Little-Endian, row-major, UL)
-!#
-!#        GTOPO30 (1-km/30 arcsec)
-!#          https://www.usgs.gov/centers/eros/science/usgs-eros-archive-digital-elevation-global-30-arc-second-elevation-gtopo30
-!#          33 tiles of binary elevation data
-!#           DEM as signed 16 bit integer binary (Big-endian, row-major, UL)
-!#           HDR with the layout
-!#           Note: to byte swap, use: dd if=inputfilename of=outputfilename conv=swab
-!#      
-!#        GMTED2010 (30,15,7.5 arcsec)
-!#          https://www.usgs.gov/coastal-changes-and-impacts/gmted2010
-!#          108 tiles (9x12) of binary elevation data 3600x2400 geotiff
-!#          signed 16 bit integer binary (Little-Endian, row-major, UL)
-!#
-!#        US National Elevation Database (NED) 1/3 arcsec (10m)
-!#          https://www.usgs.gov/programs/national-geospatial-program/national-map
-!#          1x1 deg tiles of binary elevation data
-!#          flt as 4 byte float binary
-!#
-!#        Shuttle Radar Topography Mission (SRTM) 1 arcsec global
-!#          https://www.usgs.gov/centers/eros/science/usgs-eros-archive-digital-elevation-shuttle-radar-topography-mission-srtm-1
-!#           hgt as signed 16 bit integer binary
-!#
-!#    3 : ESRI ASCII 
-!#
-!*******************************************************************************
+!
+!  Topography module
+!
+!  This module is used for optionally reading topography files of various formats,
+!  and appling them to the computational Ash3d grid as well as the sub-grid of
+!  the NWP data.  Smoothing of the topographic data is applied instead of
+!  cell averaging.  This module is invoked if the OPTMOD=TOPO block is present in
+!  the Ash3d input file.  The block as the following format:
+!
 !OPTMOD=TOPO
 !yes 2                         # use topography?; z-mod (0=none,1=shift,2=sigma)
-!2 1.0                         # Topofile format, smoothing radius
+!1 1.0                         # Topofile format, smoothing radius
 !GEBCO_08.nc                   # topofile name
+! 
+!  Line 1 indicates whether or not to use topography followed by the integer flag
+!         describing how topography will modify the vertical grid.
+!           0 = no vertical modification; z-grid remains 0-> top throughout the domain
+!           1 = shifted; s = z-z_surf; computational grid is uniformly shifted upward
+!               everywhere by topography
+!           2 = sigma-altitude; s=(z-z_surf)/(z_top-z_surf); topography has decaying
+!               influence with height
+!  Line 2 indicates the topography data format followed by the smoothing radius in km
+!  Topofile format must be one of
+!    1 : Gridded lon/lat (netcdf)
+!        ETOPO : https://www.ncei.noaa.gov/products/etopo-global-relief-model
+!          ETOPO 1 (deprecated)
+!           lon double
+!           lat float
+!           z(lat,lon) short (m)
+!            60 arcsec in one file (446 Mb)
+!          ETOPO 2022 (netcdf whole or subset)
+!           lon double
+!           lat double
+!           z(lat,lon) float (m)
+!            15 arcsec in 15deg tiles (~20 Mb each)
+!            30 arcsec in 1 file (1.6 Gb)
+!            60 arcsec in 1 file (457 Mb)
+!        GEBCO : https://www.gebco.net/
+!          GEBCO 08 (deprecated)
+!           x_range double
+!           y_range double
+!           z(xysize) short (m)
+!            30 arcsec in one file (1.8 Gb)
+!          GEBCO 14 (deprecated)
+!           lon double
+!           lat double
+!           elevation(lat,lon) short (m)
+!            30 arcsec in one file (1.8 Gb)
+!          GEBCO 2023 (netcdf whole or subset)
+!           lon double
+!           lat double
+!           elevation(lat,lon) short (m)
+!            15 arcsec in 1 file (7.0 Gb for global)
+!
+!    2 : Gridded Binary
+!        NOAA Globe (1-km/30 arcsec) https://www.ngdc.noaa.gov/mgg/topo/globe.html
+!          16 tiles of binary elevation data
+!           10800 col by 6000 row (-50->50lat) or 4800 or polar
+!           signed 16 bit integer binary (Little-Endian, row-major, UL)
+!
+!        GTOPO30 (1-km/30 arcsec)
+!          https://www.usgs.gov/centers/eros/science/usgs-eros-archive-digital-elevation-global-30-arc-second-elevation-gtopo30
+!          33 tiles of binary elevation data
+!           DEM as signed 16 bit integer binary (Big-endian, row-major, UL)
+!           HDR with the layout
+!           Note: to byte swap, use: dd if=inputfilename of=outputfilename conv=swab
+!
+!        The following might work, but are not yet tested:
+!              GMTED2010 (30,15,7.5 arcsec)
+!                https://www.usgs.gov/coastal-changes-and-impacts/gmted2010
+!                108 tiles (9x12) of binary elevation data 3600x2400 geotiff
+!                signed 16 bit integer binary (Little-Endian, row-major, UL)
+!
+!              US National Elevation Database (NED) 1/3 arcsec (10m)
+!                https://www.usgs.gov/programs/national-geospatial-program/national-map
+!                1x1 deg tiles of binary elevation data
+!                flt as 4 byte float binary
+!
+!              Shuttle Radar Topography Mission (SRTM) 1 arcsec global
+!                https://www.usgs.gov/centers/eros/science/usgs-eros-archive-digital-elevation-shuttle-radar-topography-mission-srtm-1
+!                 hgt as signed 16 bit integer binary
+!
+!    3 : ESRI ASCII 
+!        This currently is not set up as a generic ESRI ASCII input, but rather
+!        the ESRI ASCII topography file written by
+!          Ash3d_PostProc 3d_tephra_fall.nc 15 1
+!        This output file (Topography____final.dat) likely already had a smoothing
+!        applied to it and only encompases the computational grid.
+!
+!    4 : Geotiff (Not yet implemented)
+!
+!
+!      subroutine input_data_Topo
+!      subroutine Allocate_Topo
+!      subroutine Prep_output_Topo
+!      subroutine Deallocate_Topo
+!      subroutine Get_Topo
+!      subroutine Load_Topo_Gridded_NC
+!      subroutine Load_Topo_Gridded_NC_GEBCO08
+!      subroutine Load_Topo_Gridded_bin
+!      subroutine Load_Topo_Gridded_ASCII
+!      subroutine Interp_Topo
+!      subroutine Smooth_Topo
+!
+!*******************************************************************************
 
       module Topography
-
-!##############################################################################
-!     
-!     In principle, netcdf would not be needed for including
-!     topography, however, we assume/require that this library is
-!     included to read ETOPO and GEBCO
-!
-!##############################################################################
 
       use precis_param
 
       use io_units
+
+      implicit none
+
+      logical             :: useTopo         = .false.
+      integer             :: topoFormat
+      real(kind=ip)       :: rad_smooth
+      logical             :: useSmoothTopo   = .false.
+      character (len=80)  :: file_topo
+
+      integer, parameter  :: fid_hdrfile     = 600
+      integer, parameter  :: fid_datfile     = 601
 
       ! Set the number of output variables for this module
       integer, parameter :: nvar_User2d_static_XY_Topo = 1 ! topography
@@ -102,15 +143,6 @@
       integer :: indx_User3d_XYZ_Topo
       integer :: indx_User4d_XYZGs_Topo
 
-      character (len=50)  :: file_topo
-      integer, parameter  :: fid_hdrfile     = 600
-      integer, parameter  :: fid_datfile     = 601
-
-      integer             :: topoFormat
-      real(kind=ip)       :: rad_smooth
-      logical :: useTopo         = .false.
-      logical :: useSmoothTopo   = .false.
-
       integer :: nlat_topo_fullgrid
       integer :: nlon_topo_fullgrid
       real(kind=dp), dimension(:)    ,allocatable :: lat_topo_fullgrid
@@ -130,12 +162,30 @@
       integer      ,dimension(:,:)  ,allocatable :: topo_indx ! kindex of topo
       integer,private :: lon_shift_flag
 
-      real(kind=ip) :: minlon_Topo,maxlon_Topo
-      real(kind=ip) :: minlat_Topo,maxlat_Topo
+      real(kind=ip) :: minlon_Topo_comp,maxlon_Topo_comp
+      real(kind=ip) :: minlat_Topo_comp,maxlat_Topo_comp
+
+      real(kind=ip) :: minlon_Topo_Met,maxlon_Topo_Met
+      real(kind=ip) :: minlat_Topo_Met,maxlat_Topo_Met
 
       contains
 
-!******************************************************************************
+      !------------------------------------------------------------------------
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+!  input_data_Topo
+!
+!  This subroutine is called from Ash3d.F90 after Read_Control_File only if the
+!  input file has a block with the keyword OPTMOD=TOPO.
+!
+!  Arguments:
+!    none
+!
+!  This subroutine reads the input block specifying how topography shoule be
+!  loaded and used.
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       subroutine input_data_Topo
 
@@ -150,8 +200,6 @@
 
       use MetReader,       only : &
          MR_useTopo,MR_ZScaling_ID
-
-      implicit none
 
       character(len=3)  :: answer
       integer           :: dum_int
@@ -236,14 +284,14 @@
                                real(rad_smooth,kind=4)
           endif;enddo
 #ifndef USENETCDF
-        ! If we are here, then we expect to read the netcdf output file.  If netcdf
-        ! not linked, give an error and exit
-        do io=1,2;if(VB(io).le.verbosity_error)then
-          write(errlog(io),*)'Expecting to read a netcdf topography file, but the netcdf'
-          write(errlog(io),*)'library is not linked.  Please recompile, linking to'
-          write(errlog(io),*)'netcdf or use gridded binary or ASCII topography data.'
-        endif;enddo
-        stop 1
+          ! If we are here, then we expect to read the netcdf output file.  If netcdf
+          ! not linked, give an error and exit
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)'Expecting to read a netcdf topography file, but the netcdf'
+            write(errlog(io),*)'library is not linked.  Please recompile, linking to'
+            write(errlog(io),*)'netcdf or use gridded binary or ASCII topography data.'
+          endif;enddo
+          stop 1
 #endif
         elseif(topoFormat.eq.2)then
           do io=1,2;if(VB(io).le.verbosity_info)then
@@ -257,6 +305,18 @@
             write(outlog(io),*)"    Read smoothing radius = ",&
                                real(rad_smooth,kind=4)
           endif;enddo
+        elseif(topoFormat.eq.4)then
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)'Read topoFormat = 4 (Geotiff)'
+            write(errlog(io),*)'  Unfortunately, this format is not yet implemented'
+          endif;enddo
+          stop 1
+        else
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)'Read topoFormat = ',topoFormat
+            write(errlog(io),*)'  Only NetCDF, binary, and ASCII (1,2,3) are currently implemented.'
+          endif;enddo
+          stop 1
         endif
         ! And read the file name
         read(10,'(a80)',iostat=ios,err=2010)linebuffer080
@@ -293,7 +353,21 @@
 
       end subroutine input_data_Topo
 
-!******************************************************************************
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+!  Allocate_Topo
+!
+!  Called from: Ash3d.F90
+!  Arguments:
+!    nx,ny = dimensions of the computational grid
+!
+!  This subroutine allocates topo_comp which holds the topography interpolated
+!  onto the computational grid.  topo_indx is also allocated which is only use
+!  for ZScaling_ID=0 where topography is allowed to intersect the computational
+!  grid. This subroutine also appends the output variable "Topography" to the
+!  master list.
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       subroutine Allocate_Topo(nx,ny)
 
@@ -301,9 +375,8 @@
          nvar_User3d_XYZ,nvar_User3d_XYGs,nvar_User2d_XY,nvar_User2d_static_XY,&
          nvar_User4d_XYZGs
 
-      implicit none
-
-      integer :: nx,ny
+      integer           ,intent(in) :: nx
+      integer           ,intent(in) :: ny
 
       do io=1,2;if(VB(io).le.verbosity_info)then             
         write(outlog(io),*)"--------------------------------------------------"
@@ -311,11 +384,8 @@
         write(outlog(io),*)"--------------------------------------------------"
       endif;enddo
 
-!      allocate(topo_comp(0:nx+1,0:ny+1));       topo_comp = 0.0_sp
-!      allocate(topo_indx(0:nx+1,0:ny+1));       topo_indx = 0
       allocate(topo_comp(nx,ny));       topo_comp = 0.0_sp
       allocate(topo_indx(nx,ny));       topo_indx = 0
-
 
       ! Set the start indecies
       indx_User2d_static_XY_Topo = nvar_User2d_static_XY
@@ -338,7 +408,18 @@
 
       end subroutine Allocate_Topo
 
-!******************************************************************************
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+!  Prep_output_Topo
+!
+!  Called from: Ash3d.F90
+!  Arguments:
+!    none
+!
+!  This subroutine fills the module output variables, which in this case is
+!  only topo_comp
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       subroutine Prep_output_Topo
 
@@ -349,8 +430,6 @@
          var_User2d_static_XY_name,var_User2d_static_XY_unit,var_User2d_static_XY_lname,&
          var_User2d_static_XY_MissVal,var_User2d_static_XY_FillVal,&
          var_User2d_static_XY
-
-      implicit none
 
       integer :: i,indx
 
@@ -368,22 +447,39 @@
 
       end subroutine Prep_output_Topo
 
-!******************************************************************************
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+!  Deallocate_Topo
+!
+!  Called from: Ash3d.F90
+!  Arguments:
+!    none
+!
+!  This subroutine deallocates the variables allocated in Allocate_Topo.
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       subroutine Deallocate_Topo
-
-      implicit none
 
       deallocate(topo_comp)
       deallocate(topo_indx)
 
       end subroutine Deallocate_Topo
 
-!##############################################################################
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
-!    Get_Topo
+!  Get_Topo
 !
-!##############################################################################
+!  Called from: Ash3d.F90
+!  Arguments:
+!    none
+!
+!  This subroutine evaluates the computational and met grids, calls the
+!  appropriat Load subroutine based on topoFormat (netcdf, binary, ascii),
+!  then calls routines to interpolate topography onthe the computational
+!  grid and to apply a smoothing filter.
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       subroutine Get_Topo
 
@@ -392,8 +488,6 @@
 
       use MetReader,       only : &
          nx_submet,ny_submet,x_submet_sp,y_submet_sp
-
-      implicit none
 
       INTERFACE
         subroutine get_minmax_lonlat(lonmin,lonmax,latmin,latmax)
@@ -405,25 +499,24 @@
       END INTERFACE
 
       ! First we need to get the extents of the computational grid
-!      if(IsLatLon)then
+      if(IsLatLon)then
         !Just get min and max of lat and lon.
         ! These were already calculated in calc_grid under the names
         ! lonmin,lonmax,latmin,latmax
-!        minlon_Topo = min(minval(lon_cc_pd(-1:nxmax+1)),real(minval(x_submet_sp(1:nx_submet)),kind=ip))
-!        maxlon_Topo = max(maxval(lon_cc_pd(-1:nxmax+1)),real(maxval(x_submet_sp(1:nx_submet)),kind=ip))
-!        minlat_Topo = min(minval(lat_cc_pd(-1:nymax+1)),real(minval(y_submet_sp(1:ny_submet)),kind=ip))
-!        maxlat_Topo = max(maxval(lat_cc_pd(-1:nymax+1)),real(maxval(y_submet_sp(1:ny_submet)),kind=ip))
+        minlon_Topo_comp = min(minval(lon_cc_pd(-1:nxmax+1)),real(minval(x_submet_sp(1:nx_submet)),kind=ip))
+        maxlon_Topo_comp = max(maxval(lon_cc_pd(-1:nxmax+1)),real(maxval(x_submet_sp(1:nx_submet)),kind=ip))
+        minlat_Topo_comp = min(minval(lat_cc_pd(-1:nymax+1)),real(minval(y_submet_sp(1:ny_submet)),kind=ip))
+        maxlat_Topo_comp = max(maxval(lat_cc_pd(-1:nymax+1)),real(maxval(y_submet_sp(1:ny_submet)),kind=ip))
+      else
+        ! This function is in Calc_Mesh
+        write(*,*)"HFS Check this."
+        call get_minmax_lonlat(minlon_Topo_comp,maxlon_Topo_comp,minlat_Topo_comp,maxlat_Topo_comp)
+      endif
 
-        minlon_Topo = real(minval(x_submet_sp(1:nx_submet)),kind=ip)
-        maxlon_Topo = real(maxval(x_submet_sp(1:nx_submet)),kind=ip)
-        minlat_Topo = real(minval(y_submet_sp(1:ny_submet)),kind=ip)
-        maxlat_Topo = real(maxval(y_submet_sp(1:ny_submet)),kind=ip)
-
-!      else
-!        ! This function is in Calc_Mesh
-!        write(*,*)"HFS Check this."
-!        call get_minmax_lonlat(minlon_Topo,maxlon_Topo,minlat_Topo,maxlat_Topo)
-!      endif
+        minlon_Topo_Met = real(minval(x_submet_sp(1:nx_submet)),kind=ip)
+        maxlon_Topo_Met = real(maxval(x_submet_sp(1:nx_submet)),kind=ip)
+        minlat_Topo_Met = real(minval(y_submet_sp(1:ny_submet)),kind=ip)
+        maxlat_Topo_Met = real(maxval(y_submet_sp(1:ny_submet)),kind=ip)
 
       ! ETOPO and GEBCO data are provided on -180->180 grid so map to that domain
       if(minlon_Topo.ge.180_ip)then
@@ -435,7 +528,6 @@
         write(outlog(io),*)"min max lat = ",real(minlat_Topo,kind=4),real(maxlat_Topo,kind=4)
       endif;enddo
 
-
       if(topoFormat.eq.1)then
 #ifdef USENETCDF
         call Load_Topo_Gridded_NC
@@ -443,7 +535,7 @@
       elseif(topoFormat.eq.2)then
         call Load_Topo_Gridded_bin
       elseif(topoFormat.eq.3)then
-        !call Load_Topo_ESRI_ASCII
+        call Load_Topo_Gridded_ASCII
       else
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"ERROR: Topography input format not recognized."
@@ -461,20 +553,33 @@
 
       end subroutine Get_Topo
 
-!##############################################################################
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
-!    Load_Topo_Gridded_NC
+!  Load_Topo_Gridded_NC
 !
-!##############################################################################
+!  Called from: Get_Topo
+!  Arguments:
+!    none
+!
+!  This subroutine reads the netcdf data file allocates and fills the subgrid
+!  with the topography data needed for the Ash3d run.  This subroutine takes
+!  into account any inversion of the y grid as well as patching together grids
+!  that span the anti-meridian. Topography data are epxected to be in a 2-d
+!  array with a name of either 'elevation' or 'z'.
+!   Allocates and sets:
+!     lon_topo_subgrid
+!     lat_topo_subgrid
+!     topo_subgrid
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 #ifdef USENETCDF
 
       subroutine Load_Topo_Gridded_NC
 
       use netcdf
-      use Ash3d_Netcdf_IO
 
-      implicit none
+      use Ash3d_Netcdf_IO
 
       integer :: nSTAT
       integer :: ncid
@@ -857,18 +962,28 @@
       end subroutine Load_Topo_Gridded_NC
 #endif
 
-!##############################################################################
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
-!    Load_Topo_Gridded_NC_GEBCO08
+!  Load_Topo_Gridded_NC_GEBCO08
 !
-!##############################################################################
+!  Called from: Load_Topo_Gridded_NC
+!  Arguments:
+!    none
+!
+!  This is a special subroutine for reading the GEBCO_08.nc file which stores
+!  the topography data as a 1-d variable of length (nx*ny)
+!   Allocates and sets:
+!     lon_topo_subgrid
+!     lat_topo_subgrid
+!     topo_subgrid
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 #ifdef USENETCDF
 
       subroutine Load_Topo_Gridded_NC_GEBCO08
 
       use netcdf
-
-      implicit none
 
       integer :: nSTAT
       integer :: ncid
@@ -883,8 +998,9 @@
       integer :: ilat,ilon,idx
 
       do io=1,2;if(VB(io).le.verbosity_info)then
-        write(outlog(io),*)"Inside load_topo"
+        write(outlog(io),*)"Reading topography data in NetCDF format."
       endif;enddo
+
         ! Check to see if the domain straddles the anti-meridian
       if (minlon_Topo.lt.180.0_ip.and.maxlon_Topo.gt.180.0_ip)then
         lon_shift_flag = 1
@@ -925,12 +1041,6 @@
       elseif(minlon_Topo.ge.180.0_dp)then
         start_lon_idx = int((minlon_Topo-180.0_dp)/dlon_topo)
       endif
-
-!      if(lon_shift_flag.eq.0)then
-!        start_lon_idx = int((minlon_Topo-180.0_dp)/dlon_topo)
-!      else
-!        start_lon_idx = int((minlon_Topo+180.0_dp)/dlon_topo)
-!      endif
 
       do ilon=1,nlon_topo_subgrid
         lon_topo_subgrid(ilon) = real(start_lon_idx+ilon-1,kind=ip)*dlon_topo &
@@ -974,11 +1084,24 @@
       end subroutine Load_Topo_Gridded_NC_GEBCO08
 #endif
 
-!##############################################################################
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
-!    Load_Topo_Gridded_bin
+!  Load_Topo_Gridded_bin
 !
-!##############################################################################
+!  Called from: Get_Topo
+!  Arguments:
+!    none
+!
+!  This subroutine reads the gridded binary data file allocates and fills the subgrid
+!  with the topography data needed for the Ash3d run.  This subroutine takes
+!  into account any inversion of the y grid, but does not patch together
+!  binary tiles.
+!   Allocates and sets:
+!     lon_topo_subgrid
+!     lat_topo_subgrid
+!     topo_subgrid
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       subroutine Load_Topo_Gridded_bin
 
@@ -988,10 +1111,8 @@
       use Ash3d_Binary_IO, only : &
          LitEnd_2int,LitEnd_4real
 
-      implicit none
-
-      character (len=50)  :: file_topo_root
-      character (len=50)  :: file_topo_hdr
+      character (len=80)  :: file_topo_root
+      character (len=80)  :: file_topo_hdr
       logical             :: IsThere1,IsThere2
 
       integer :: substr_pos,substr_pos2
@@ -1013,9 +1134,6 @@
 
       logical :: y_inverted     = .false.
       logical :: wrapgrid       = .false.
-
-      !integer :: i,ict, ileft(2),iright(2)   !if wrapgrid=.true. ict=2 and left & iright have 2 values, otherwise 1
-      !integer :: iistart(2),iicount(2)     !if (wrapgrid), iistart(1)=istart, iistart(2)=1
 
       real(kind=dp) :: startx_topo, starty_topo
       real(kind=dp) :: dy
@@ -1041,7 +1159,7 @@
       logical :: key_found
 
       do io=1,2;if(VB(io).le.verbosity_info)then
-        write(outlog(io),*)"Inside Load_Topo_Gridded_bin"
+        write(outlog(io),*)"Reading topography data in gridded binary format."
       endif;enddo
 
       ! Existance of topo file was verified earlier, now look for header; searching for either *HDR or *hdr
@@ -1507,7 +1625,10 @@
           endif
         enddo
       else ! y_inverted
-        write(*,*)"need to code up case where y_inverted=.false."
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)  'Topo error: Not yet set up for y_inverted=.false.'
+        endif;enddo
+        stop 1
       endif
 
       close(fid_datfile)
@@ -1524,11 +1645,151 @@
 
       end subroutine Load_Topo_Gridded_bin
 
-!##############################################################################
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
-!    Interp_Topo
+!  Load_Topo_Gridded_ASCII
 !
-!##############################################################################
+!  Called from: Get_Topo
+!  Arguments:
+!    none
+!
+!  This subroutine reads the gridded ASCII data file, allocates and fills the subgrid
+!  with the topography data needed for the Ash3d run.  Data is expected to be in
+!  the format as written by: Ash3d_PostProc 3d_tephra_fall.nc 15 1
+!
+!   Allocates and sets:
+!     lon_topo_subgrid
+!     lat_topo_subgrid
+!     topo_subgrid
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine Load_Topo_Gridded_ASCII
+
+      use Ash3d_ASCII_IO,  only : &
+         A_nx,A_ny,A_XY,A_XYZ,A_xll,A_yll,A_dx,A_dy, &
+           read_2D_ASCII
+
+      character(len=80) :: linebuffer080
+      integer :: start_lat_idx,start_lon_idx
+      integer :: end_lat_idx,end_lon_idx
+      integer :: ilat,ilon
+
+      ! We have already checked for the existance of the topo file, so now just
+      ! read it
+
+      do io=1,2;if(VB(io).le.verbosity_info)then
+        write(outlog(io),*)"Reading topography data in ESRI ASCII format."
+      endif;enddo
+
+      linebuffer080 = trim(adjustl(file_topo))
+      call read_2D_ASCII(linebuffer080)
+
+      ! Full topo data is now stored in A_XY
+
+      nlon_topo_fullgrid = A_nx
+      nlat_topo_fullgrid = A_ny
+      dlon_topo = A_dx
+      dlat_topo = A_dy      
+
+      allocate(lon_topo_fullgrid(1:nlon_topo_fullgrid))
+      allocate(lat_topo_fullgrid(1:nlat_topo_fullgrid))
+      do ilon = 1,nlon_topo_fullgrid
+        lon_topo_fullgrid(ilon) = A_xll + dlon_topo*(ilon-1) + 0.5_dp*dlon_topo
+      enddo
+      do ilat = 1,nlat_topo_fullgrid
+        lat_topo_fullgrid(ilat) = A_yll + dlat_topo*(ilat-1) + 0.5_dp*dlat_topo
+      enddo
+
+      ! Double-check that this lon/lat range suffices for the requested computational grid
+      nlon_topo_subgrid = floor((maxlon_Topo-minlon_Topo)/dlon_topo)
+      nlat_topo_subgrid = int((maxlat_Topo-minlat_Topo)/dlat_topo)
+
+      if(minlon_Topo.lt.lon_topo_fullgrid(1)-0.5_dp*dlon_topo)then
+        minlon_Topo = minlon_Topo + 360.0_dp
+        maxlon_Topo = maxlon_Topo + 360.0_dp
+      endif
+      start_lon_idx = -1
+      cleft = lon_topo_fullgrid(1)-0.5_dp*dlon_topo
+      do ilon=1,nlon_topo_fullgrid
+        cright = lon_topo_fullgrid(ilon)+0.5_dp*dlon_topo
+        if(minlon_Topo.ge.cleft.and. &
+           minlon_Topo.lt.cright)then
+          start_lon_idx = ilon
+        endif
+        cleft = cright
+      enddo
+      if(start_lon_idx.lt.1.or.start_lon_idx.gt.nlon_topo_fullgrid)then
+        ! Couldn't find start x
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Couldn't find start x of topo sub-grid"
+        endif;enddo
+        stop 1
+      endif
+      if(start_lon_idx+nlon_topo_subgrid.gt.nlon_topo_fullgrid)then
+        !wrapgrid = .true.
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"ERROR: Cannot use grid-wrapping for ASCII data, at the moment."
+        endif;enddo
+        stop 1
+      else
+        end_lon_idx = start_lon_idx+nlon_topo_subgrid
+      endif
+
+      start_lat_idx = -1
+      end_lat_idx   = -1
+      cleft = lat_topo_fullgrid(1)-0.5_dp*dlat_topo
+      do ilat=1,nlat_topo_fullgrid
+        cright = lat_topo_fullgrid(ilat)+0.5_dp*dlat_topo
+        if(minlat_Topo.ge.cleft.and.minlat_Topo.lt.cright)then
+          start_lat_idx = ilat
+        endif
+        if(maxlat_Topo.gt.cleft.and.maxlat_Topo.le.cright)then
+          end_lat_idx = ilat
+        endif
+        cleft = cright
+      enddo
+      if(start_lat_idx.lt.1.or.start_lat_idx.gt.nlat_topo_fullgrid)then
+        ! Couldn't find start y
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Couldn't find start y of topo sub-grid."
+        endif;enddo
+        stop 1
+      endif
+      if(end_lat_idx.lt.1.or.end_lat_idx.gt.nlat_topo_fullgrid)then
+        ! Couldn't find end y
+        do io=1,2;if(VB(io).le.verbosity_error)then
+          write(errlog(io),*)"Couldn't find end y of topo sub-grid."
+        endif;enddo
+        stop 1
+      endif
+
+      ! Define the sub-grid holding the topo data we need
+      allocate(lon_topo_subgrid(nlon_topo_subgrid))
+      allocate(lat_topo_subgrid(nlat_topo_subgrid))
+      allocate(topo_subgrid(nlon_topo_subgrid,nlat_topo_subgrid))
+
+      stop 8
+
+      end subroutine Load_Topo_Gridded_ASCII
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+!  Interp_Topo
+!
+!  Called from: Get_Topo
+!  Arguments:
+!    none
+!
+!  This subroutine loops through all the computational cell-center coordinates,
+!  maps the coordinates to the topo grid, then interpolates the topography value
+!  onto topo_comp.
+!   Sets:
+!     topo_indx
+!     topo_comp
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       subroutine Interp_Topo
 
@@ -1539,8 +1800,6 @@
          nxmax,nymax,nzmax,lon_cc_pd,lat_cc_pd,z_cc_pd,xy2ll_ylat,&
          xy2ll_xlon,IsLatLon
 
-      implicit none
-
       integer :: i,j,k
       real(kind=ip) :: ophi,olam
       real(kind=ip) :: a1,a2,a3,a4
@@ -1548,7 +1807,7 @@
       integer       :: ilon,ilat
 
       do io=1,2;if(VB(io).le.verbosity_info)then
-        write(outlog(io),*)"Inside interp_topo"
+        write(outlog(io),*)"Interpolating topographic data"
       endif;enddo
 
       ! Loop over all the computational grid points
@@ -1625,12 +1884,29 @@
 
       if(.not.IsLatLon) then
         deallocate(xy2ll_ylat,xy2ll_xlon)
-
       endif
 
       end subroutine Interp_Topo
 
-!##############################################################################
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+!  Smooth_Topo
+!
+!  Called from: Get_Topo
+!  Arguments:
+!    none
+!
+!  This subroutine loops through all the nodes of the comptational and met
+!  grids, then applies a smoothing filter to the topography.  The smoothing
+!  filter is a weighted average of the topo values using a cubic-spline
+!  kernel with a characteristic length of 0.5*rad_smooth. The topo values
+!  on the met grid are smoothed using a radius of the grid width of the met
+!  grid.
+!   Resets:
+!     topo_comp
+!     MR_Topo_comp
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       subroutine Smooth_Topo
 
@@ -1644,8 +1920,6 @@
       use MetReader,       only : &
          MR_minlen,x_submet_sp,y_submet_sp,nx_submet,ny_submet,MR_dx_met,MR_dy_met,&
          MR_Topo_comp,MR_Topo_met
-
-      implicit none
 
       integer :: i,j,k,it
       integer :: iidx,jidx
