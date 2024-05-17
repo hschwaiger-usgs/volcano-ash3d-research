@@ -150,8 +150,8 @@
 
       integer :: nlat_topo_subgrid
       integer :: nlon_topo_subgrid
-      real(kind=dp), dimension(:)    ,allocatable :: lat_topo_subgrid
-      real(kind=dp), dimension(:)    ,allocatable :: lon_topo_subgrid
+      real(kind=dp), dimension(:)    ,allocatable :: latcc_topo_subgrid
+      real(kind=dp), dimension(:)    ,allocatable :: loncc_topo_subgrid
       real(kind=dp) :: dlat_topo
       real(kind=dp) :: dlon_topo
       real(kind=dp) :: cleft,cright
@@ -164,9 +164,9 @@
 
       real(kind=ip) :: minlon_Topo_comp,maxlon_Topo_comp
       real(kind=ip) :: minlat_Topo_comp,maxlat_Topo_comp
-
       real(kind=ip) :: minlon_Topo_Met,maxlon_Topo_Met
       real(kind=ip) :: minlat_Topo_Met,maxlat_Topo_Met
+      logical       :: Topo_UseCompGrid      = .false.
 
       contains
 
@@ -190,10 +190,10 @@
       subroutine input_data_Topo
 
       use global_param,  only : &
-         DEG2RAD,RAD_EARTH,nmods
+         nmods
 
       use mesh,          only : &
-         dx,dy,de,dn,IsLatLon,ZScaling_ID
+         ZScaling_ID
 
       use io_data,       only : &
          infile
@@ -484,7 +484,7 @@
       subroutine Get_Topo
 
       use mesh,          only : &
-         IsLatLon,lon_cc_pd,lat_cc_pd,nxmax,nymax
+         IsLatLon,lon_cc_pd,lat_cc_pd,de,dn,nxmax,nymax
 
       use MetReader,       only : &
          nx_submet,ny_submet,x_submet_sp,y_submet_sp
@@ -503,29 +503,38 @@
         !Just get min and max of lat and lon.
         ! These were already calculated in calc_grid under the names
         ! lonmin,lonmax,latmin,latmax
-        minlon_Topo_comp = min(minval(lon_cc_pd(-1:nxmax+1)),real(minval(x_submet_sp(1:nx_submet)),kind=ip))
-        maxlon_Topo_comp = max(maxval(lon_cc_pd(-1:nxmax+1)),real(maxval(x_submet_sp(1:nx_submet)),kind=ip))
-        minlat_Topo_comp = min(minval(lat_cc_pd(-1:nymax+1)),real(minval(y_submet_sp(1:ny_submet)),kind=ip))
-        maxlat_Topo_comp = max(maxval(lat_cc_pd(-1:nymax+1)),real(maxval(y_submet_sp(1:ny_submet)),kind=ip))
+        minlon_Topo_comp = minval(lon_cc_pd(1:nxmax)-0.5_ip*de)
+        maxlon_Topo_comp = maxval(lon_cc_pd(1:nxmax)+0.5_ip*de)
+        minlat_Topo_comp = minval(lat_cc_pd(1:nymax)-0.5_ip*dn)
+        maxlat_Topo_comp = maxval(lat_cc_pd(1:nymax)+0.5_ip*dn)
       else
         ! This function is in Calc_Mesh
-        write(*,*)"HFS Check this."
         call get_minmax_lonlat(minlon_Topo_comp,maxlon_Topo_comp,minlat_Topo_comp,maxlat_Topo_comp)
       endif
 
-        minlon_Topo_Met = real(minval(x_submet_sp(1:nx_submet)),kind=ip)
-        maxlon_Topo_Met = real(maxval(x_submet_sp(1:nx_submet)),kind=ip)
-        minlat_Topo_Met = real(minval(y_submet_sp(1:ny_submet)),kind=ip)
-        maxlat_Topo_Met = real(maxval(y_submet_sp(1:ny_submet)),kind=ip)
+      minlon_Topo_Met = real(minval(x_submet_sp(1:nx_submet)),kind=ip)
+      maxlon_Topo_Met = real(maxval(x_submet_sp(1:nx_submet)),kind=ip)
+      minlat_Topo_Met = real(minval(y_submet_sp(1:ny_submet)),kind=ip)
+      maxlat_Topo_Met = real(maxval(y_submet_sp(1:ny_submet)),kind=ip)
 
       ! ETOPO and GEBCO data are provided on -180->180 grid so map to that domain
-      if(minlon_Topo.ge.180_ip)then
-        minlon_Topo = minlon_Topo-360.0_ip
-        maxlon_Topo = maxlon_Topo-360.0_ip
+      if(minlon_Topo_comp.ge.180_ip)then
+        minlon_Topo_comp = minlon_Topo_comp-360.0_ip
+        maxlon_Topo_comp = maxlon_Topo_comp-360.0_ip
+      endif
+      if(minlon_Topo_Met.ge.180_ip)then
+        minlon_Topo_Met  = minlon_Topo_Met -360.0_ip
+        maxlon_Topo_Met  = maxlon_Topo_Met -360.0_ip
       endif
       do io=1,2;if(VB(io).le.verbosity_info)then
-        write(outlog(io),*)"min max lon = ",real(minlon_Topo,kind=4),real(maxlon_Topo,kind=4)
-        write(outlog(io),*)"min max lat = ",real(minlat_Topo,kind=4),real(maxlat_Topo,kind=4)
+        write(outlog(io),*)"Minimun/maximum longitide of computational grid = ",&
+                             real(minlon_Topo_comp,kind=4),real(maxlon_Topo_comp,kind=4)
+        write(outlog(io),*)"Minimun/maximum longitide of computational grid = ",&
+                             real(minlat_Topo_comp,kind=4),real(maxlat_Topo_comp,kind=4)
+        write(outlog(io),*)"Minimun/maximum longitide of Met grid = ",&
+                             real(minlon_Topo_Met,kind=4),real(maxlon_Topo_Met,kind=4)
+        write(outlog(io),*)"Minimun/maximum longitide of Met grid = ",&
+                             real(minlat_Topo_Met,kind=4),real(maxlat_Topo_Met,kind=4)
       endif;enddo
 
       if(topoFormat.eq.1)then
@@ -567,8 +576,8 @@
 !  that span the anti-meridian. Topography data are epxected to be in a 2-d
 !  array with a name of either 'elevation' or 'z'.
 !   Allocates and sets:
-!     lon_topo_subgrid
-!     lat_topo_subgrid
+!     loncc_topo_subgrid
+!     latcc_topo_subgrid
 !     topo_subgrid
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -583,29 +592,25 @@
 
       integer :: nSTAT
       integer :: ncid
-      integer :: ivar,in_var_id,var_ndims
+      integer :: var_ndims
 
       integer :: lat_dim_id        = 0
       integer :: lon_dim_id        = 0
-      integer :: lat_var_id        = 0
-      integer :: lon_var_id        = 0
       integer :: topo_var_id       = 0
 
       character(len=NF90_MAX_NAME)  :: invar,dimname
       integer :: dim_xtype,dimlen,i_dim
       integer,dimension(:),allocatable :: var_dimIDs
-      integer :: var_xtype,var_id,idx
-      integer :: xtype, length, attnum
+      integer :: var_xtype,var_id
 
-      integer(kind=2), dimension(:)   ,allocatable :: dum1d_short
-      integer(kind=2), dimension(:,:) ,allocatable :: dum2d_short
+      !integer(kind=2), dimension(:)   ,allocatable :: dum1d_short
+      !integer(kind=2), dimension(:,:) ,allocatable :: dum2d_short
 
       real(kind=sp)   ,dimension(:)   ,allocatable :: temp1d_sp
       real(kind=dp)   ,dimension(:)   ,allocatable :: temp1d_dp
      
-      integer :: nlat_tot,nlon_tot
       integer :: start_lat_idx,start_lon_idx
-      integer :: end_lat_idx,end_lon_idx
+      integer :: end_lat_idx
       integer :: ilat,ilon
 
       logical :: x_inverted     = .false.
@@ -619,15 +624,17 @@
       integer :: i,ict, ileft(2),iright(2)   !if wrapgrid=.true. ict=2 and left & iright have 2 values, otherwise 1
       integer :: iistart(2),iicount(2)     !if (wrapgrid), iistart(1)=istart, iistart(2)=1
 
+      INTERFACE
+        subroutine MR_NC_check_status(nSTAT, errcode, operation)
+          integer, intent(in) :: nSTAT
+          integer, intent(in) :: errcode
+          character(len=*), intent(in) :: operation
+        end subroutine MR_NC_check_status
+      END INTERFACE
+
       do io=1,2;if(VB(io).le.verbosity_info)then
-        write(outlog(io),*)"Inside Load_Topo_Gridded_NC"
+        write(outlog(io),*)"Reading topography data in NetCDF format via Load_Topo_Gridded_NC"
       endif;enddo
-        ! Check to see if the domain straddles the anti-meridian
-      if (minlon_Topo.lt.180.0_ip.and.maxlon_Topo.gt.180.0_ip)then
-        lon_shift_flag = 1
-      else
-        lon_shift_flag = 0
-      endif
 
       nSTAT = nf90_open(adjustl(trim(file_topo)),NF90_NOWRITE,ncid)
       if(nSTAT.ne.NF90_NOERR)call NC_check_status(nSTAT,1,"nf90_open topofile")
@@ -650,6 +657,10 @@
             write(errlog(io),*)'  Unknown topography format'
           endif;enddo
           stop 1
+        else
+          do io=1,nio;if(VB(io).le.verbosity_info)then
+            write(outlog(io),*)'  Found variable z; all good.'
+          endif;enddo
         endif
       endif
 
@@ -668,7 +679,7 @@
         ! The deprecated GEBCO 08 data stores elevation in one long array
         ! Need to use a special reader for this
         do io=1,nio;if(VB(io).le.verbosity_info)then
-          write(outlog(io),*)"Looks like GEBCO 08"
+          write(outlog(io),*)"This looks like GEBCO_08 which has topography in one variable z(nx*ny)"
           write(outlog(io),*)"Calling special reader"
         endif;enddo
         nSTAT = nf90_close(ncid)
@@ -798,28 +809,49 @@
       endif
 
       ! Check that the computational grid is in the correct periodic mapping to the topo grid
-      if(minlon_Topo.lt.lon_topo_fullgrid(1)-0.5_dp*dlon_topo)then
-        minlon_Topo = minlon_Topo + 360.0_dp
-        maxlon_Topo = maxlon_Topo + 360.0_dp
+      if(minlon_Topo_comp.lt.lon_topo_fullgrid(1)-0.5_dp*dlon_topo)then
+        minlon_Topo_comp = minlon_Topo_comp + 360.0_dp
+        maxlon_Topo_comp = maxlon_Topo_comp + 360.0_dp
+      endif
+      if(minlon_Topo_Met.lt.lon_topo_fullgrid(1)-0.5_dp*dlon_topo)then
+        minlon_Topo_Met  = minlon_Topo_Met  + 360.0_dp
+        maxlon_Topo_Met  = maxlon_Topo_Met  + 360.0_dp
       endif
       start_lon_idx = -1
       cleft = lon_topo_fullgrid(1)-0.5_dp*dlon_topo
       do ilon=1,nlon_topo_fullgrid
         cright = lon_topo_fullgrid(ilon)+0.5_dp*dlon_topo
-        if(minlon_Topo.ge.cleft.and. &
-           minlon_Topo.lt.cright)then
+        if(minlon_Topo_Met.ge.cleft.and. &
+           minlon_Topo_Met.lt.cright.and.&
+           .not.Topo_UseCompGrid)then
+          write(*,*)"Setting start_lon_idx by Met grid"
           start_lon_idx = ilon
+        endif
+        ! Use extents of computational grid if topo grid does not cover Met grid
+        if(minlon_Topo_comp.ge.cleft.and. &
+           minlon_Topo_comp.lt.cright.and.&
+           start_lon_idx.lt.0)then
+          start_lon_idx = ilon
+          Topo_UseCompGrid = .true.
         endif
         cleft = cright
       enddo
-      nlon_topo_subgrid = floor((maxlon_Topo-minlon_Topo)/dlon_topo)
+      if(Topo_UseCompGrid)then
+        nlon_topo_subgrid = floor((maxlon_Topo_comp-minlon_Topo_comp)/dlon_topo)+1
+        nlat_topo_subgrid = int((maxlat_Topo_comp-minlat_Topo_comp)/dlat_topo)
+      else
+        nlon_topo_subgrid = floor((maxlon_Topo_Met-minlon_Topo_Met)/dlon_topo)+1
+      endif
+
       if(start_lon_idx.lt.1.or.start_lon_idx.gt.nlon_topo_fullgrid)then
         ! Couldn't find start x
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"Couldn't find start x of topo sub-grid"
+          write(errlog(io),*)"start_lon_idx = ",start_lon_idx
         endif;enddo
         stop 1
       endif
+
       if(start_lon_idx+nlon_topo_subgrid.gt.nlon_topo_fullgrid)then
         wrapgrid = .true.
       endif
@@ -848,13 +880,28 @@
       cleft = lat_topo_fullgrid(1)-0.5_dp*dlat_topo
       do ilat=1,nlat_topo_fullgrid
         cright = lat_topo_fullgrid(ilat)+0.5_dp*dlat_topo
-        if(minlat_Topo.ge.cleft.and. &
-           minlat_Topo.lt.cright)then
+        if(minlat_Topo_Met.ge.cleft.and. &
+           minlat_Topo_Met.lt.cright.and.&
+           .not.Topo_UseCompGrid)then
           start_lat_idx = ilat
         endif
-        if(maxlat_Topo.gt.cleft.and. &
-           maxlat_Topo.le.cright)then
+        ! Use extents of computational grid if topo grid does not cover Met grid
+        if(minlat_Topo_comp.ge.cleft.and. &
+           minlat_Topo_comp.lt.cright.and.&
+           start_lat_idx.lt.0)then
+          start_lat_idx = ilat
+          Topo_UseCompGrid = .true.
+        endif
+        if(maxlat_Topo_Met.gt.cleft.and. &
+           maxlat_Topo_Met.le.cright.and.&
+           .not.Topo_UseCompGrid)then
           end_lat_idx = ilat
+        endif
+        if(maxlat_Topo_comp.gt.cleft.and. &
+           maxlat_Topo_comp.le.cright.and.&
+           end_lat_idx.lt.0)then
+          end_lat_idx = ilat
+          Topo_UseCompGrid = .true.
         endif
         cleft = cright
       enddo
@@ -862,6 +909,7 @@
         ! Couldn't find start y
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"Couldn't find start y of topo sub-grid."
+          write(errlog(io),*)"start_lat_idx = ",start_lat_idx
         endif;enddo
         stop 1
       endif
@@ -869,18 +917,19 @@
         ! Couldn't find end y
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"Couldn't find end y of topo sub-grid."
+          write(errlog(io),*)"end_lat_idx = ",end_lat_idx
         endif;enddo
         stop 1
       endif
 
       nlat_topo_subgrid = end_lat_idx - start_lat_idx + 1
-      allocate(lon_topo_subgrid(nlon_topo_subgrid))
-      allocate(lat_topo_subgrid(nlat_topo_subgrid))
+      allocate(loncc_topo_subgrid(nlon_topo_subgrid))
+      allocate(latcc_topo_subgrid(nlat_topo_subgrid))
       allocate(topo_subgrid(nlon_topo_subgrid,nlat_topo_subgrid))
       do ilon=1,nlon_topo_subgrid
-        lon_topo_subgrid(ilon)=lon_topo_fullgrid(start_lon_idx)+(ilon-1)*dlat_topo
+        loncc_topo_subgrid(ilon)=lon_topo_fullgrid(start_lon_idx)+(ilon-1)*dlat_topo
       enddo
-      lat_topo_subgrid(1:nlat_topo_subgrid)=lat_topo_fullgrid(start_lat_idx:end_lat_idx)
+      latcc_topo_subgrid(1:nlat_topo_subgrid)=lat_topo_fullgrid(start_lat_idx:end_lat_idx)
 
       ! Now re-inquire about the topo variables and load the data
       nSTAT = nf90_inquire_variable(ncid, topo_var_id, invar, &
@@ -973,8 +1022,8 @@
 !  This is a special subroutine for reading the GEBCO_08.nc file which stores
 !  the topography data as a 1-d variable of length (nx*ny)
 !   Allocates and sets:
-!     lon_topo_subgrid
-!     lat_topo_subgrid
+!     loncc_topo_subgrid
+!     latcc_topo_subgrid
 !     topo_subgrid
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -991,9 +1040,9 @@
       integer :: topo_var_id       = 0
 
       integer(kind=2), dimension(:)   ,allocatable :: dum1d_short
-      integer(kind=2), dimension(:,:) ,allocatable :: dum2d_short
+      !integer(kind=2), dimension(:,:) ,allocatable :: dum2d_short
 
-      integer :: nlat_tot,nlon_tot
+      !integer :: nlat_tot,nlon_tot
       integer :: start_lat_idx,start_lon_idx,end_lon_idx
       integer :: ilat,ilon,idx
 
@@ -1002,7 +1051,7 @@
       endif;enddo
 
         ! Check to see if the domain straddles the anti-meridian
-      if (minlon_Topo.lt.180.0_ip.and.maxlon_Topo.gt.180.0_ip)then
+      if (minlon_Topo_Met.lt.180.0_ip.and.maxlon_Topo_Met.gt.180.0_ip)then
         lon_shift_flag = 1
       else
         lon_shift_flag = 0
@@ -1024,26 +1073,26 @@
       nlon_topo_fullgrid = 43200
       dlon_topo = 1.0_dp/120.0_dp
       dlat_topo = 1.0_dp/120.0_dp
-      start_lat_idx = int((minlat_Topo+90.0_ip)/dlon_topo)
+      start_lat_idx = int((minlat_Topo_Met+90.0_ip)/dlon_topo)
       start_lat_idx = nlat_topo_fullgrid-start_lat_idx
 
       ! Define the sub-grid holding the topo data we need
-      nlon_topo_subgrid = int((maxlon_Topo-minlon_Topo)/dlon_topo) + 4
-      nlat_topo_subgrid = int((maxlat_Topo-minlat_Topo)/dlat_topo) + 4
-      allocate(lon_topo_subgrid(nlon_topo_subgrid))
-      allocate(lat_topo_subgrid(nlat_topo_subgrid))
+      nlon_topo_subgrid = int((maxlon_Topo_Met-minlon_Topo_Met)/dlon_topo) + 4
+      nlat_topo_subgrid = int((maxlat_Topo_Met-minlat_Topo_Met)/dlat_topo) + 4
+      allocate(loncc_topo_subgrid(nlon_topo_subgrid))
+      allocate(latcc_topo_subgrid(nlat_topo_subgrid))
       allocate(topo_subgrid(nlon_topo_subgrid,nlat_topo_subgrid))
       ! GEBCO08 has data that start at -180, so shift 0 accordingly
-      if(minlon_Topo.lt.0.0_dp)then
-        start_lon_idx = int((minlon_Topo+180.0_dp)/dlon_topo)
-      elseif(minlon_Topo.ge.0.0_dp.and.minlon_Topo.lt.180.0_dp)then
-        start_lon_idx = int((minlon_Topo+180.0_dp)/dlon_topo)
-      elseif(minlon_Topo.ge.180.0_dp)then
-        start_lon_idx = int((minlon_Topo-180.0_dp)/dlon_topo)
+      if(minlon_Topo_Met.lt.0.0_dp)then
+        start_lon_idx = int((minlon_Topo_Met+180.0_dp)/dlon_topo)
+      elseif(minlon_Topo_Met.ge.0.0_dp.and.minlon_Topo_Met.lt.180.0_dp)then
+        start_lon_idx = int((minlon_Topo_Met+180.0_dp)/dlon_topo)
+      elseif(minlon_Topo_Met.ge.180.0_dp)then
+        start_lon_idx = int((minlon_Topo_Met-180.0_dp)/dlon_topo)
       endif
 
       do ilon=1,nlon_topo_subgrid
-        lon_topo_subgrid(ilon) = real(start_lon_idx+ilon-1,kind=ip)*dlon_topo &
+        loncc_topo_subgrid(ilon) = real(start_lon_idx+ilon-1,kind=ip)*dlon_topo &
                          - 0.5_dp*dlon_topo - 180.0_dp
       enddo
       ! now shift the lon values if they start in the western hemisphere
@@ -1051,7 +1100,7 @@
       if(lon_shift_flag.eq.0)then
         end_lon_idx = nlon_topo_subgrid
       else
-        end_lon_idx = int((180.0_dp-minlon_Topo)/dlon_topo)
+        end_lon_idx = int((180.0_dp-minlon_Topo_Met)/dlon_topo)
       endif
 
       ! GEBCO_08 start at the NW corner of the grid
@@ -1061,7 +1110,7 @@
       do ilat=1,nlat_topo_subgrid
         ! Get the index point of the start of the line at the right
         ! latitude
-        lat_topo_subgrid(ilat)=(real(nlat_topo_fullgrid-(start_lat_idx-ilat+1),kind=ip)*dlat_topo &
+        latcc_topo_subgrid(ilat)=(real(nlat_topo_fullgrid-(start_lat_idx-ilat+1),kind=ip)*dlat_topo &
                        -0.5_dp*dlat_topo)-90.0_dp
         idx = (start_lat_idx-ilat)*nlon_topo_fullgrid +1
         ! Get the full row of topo values that encircle the globe
@@ -1097,8 +1146,8 @@
 !  into account any inversion of the y grid, but does not patch together
 !  binary tiles.
 !   Allocates and sets:
-!     lon_topo_subgrid
-!     lat_topo_subgrid
+!     loncc_topo_subgrid
+!     latcc_topo_subgrid
 !     topo_subgrid
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1106,7 +1155,7 @@
       subroutine Load_Topo_Gridded_bin
 
       use global_param,  only : &
-         IsLitEnd
+         IsLitEnd,EPS_SMALL
 
       use Ash3d_Binary_IO, only : &
          LitEnd_2int,LitEnd_4real
@@ -1115,17 +1164,15 @@
       character (len=80)  :: file_topo_hdr
       logical             :: IsThere1,IsThere2
 
-      integer :: substr_pos,substr_pos2
+      integer :: str_pos,substr_pos1,substr_pos2,substr_pos3,space_pos
 
       integer(kind=2) :: temp1_short,temp2_short
       integer(kind=2), dimension(:)   ,allocatable :: temp1dfull_short
       integer(kind=2), dimension(:)   ,allocatable :: temp1dsub_short
-      integer(kind=2), dimension(:,:) ,allocatable :: temp2d_short
 
       real(kind=sp)   :: temp1_sp,temp2_sp
       real(kind=sp)   ,dimension(:)   ,allocatable :: temp1dfull_sp
       real(kind=sp)   ,dimension(:)   ,allocatable :: temp1dsub_sp
-      real(kind=sp)   ,dimension(:,:) ,allocatable :: temp2d_sp
 
       integer :: start_lat_idx,start_lon_idx
       integer :: end_lat_idx,end_lon_idx
@@ -1144,18 +1191,12 @@
       integer           :: iostatus
       integer           :: ioerr
       character(len=120):: iomessage
-      character(len=20) :: key_name
+      character(len=20) :: key_name1,key_name2,key_name3
       logical :: IsLitEnd_topo
       logical :: IsInt_topo
-      integer :: nlat_tot
-      integer :: nlon_tot
       integer :: nbits
       integer :: nodata_int
       real(kind=sp) :: nodata_sp
-      real(kind=dp) :: ULx_topo
-      real(kind=dp) :: ULy_topo
-      real(kind=dp) :: LLx_topo
-      real(kind=dp) :: LLy_topo
       logical :: key_found
 
       do io=1,2;if(VB(io).le.verbosity_info)then
@@ -1177,9 +1218,9 @@
       ! First, find the root-extension deliminator '.'.  Two possibilities here:
       !  One or more delimitors -> strip off extension and test for hdr or HDR
       !  No delimitor  -> add hdr or HDR to root and test
-      substr_pos = index(file_topo,'.',back=.true.)
-      if(substr_pos.gt.0)then
-        file_topo_root = file_topo(1:substr_pos-1)
+      substr_pos1 = index(file_topo,'.',back=.true.)
+      if(substr_pos1.gt.0)then
+        file_topo_root = file_topo(1:substr_pos1-1)
       else
         file_topo_root = file_topo
       endif
@@ -1203,17 +1244,19 @@
       ! Opening header file
       open(unit=fid_hdrfile,file=file_topo_hdr,status='old',action='read',err=9001)
       ! First, look for "BYTEORDER'
-      substr_pos = -1
-      key_name = 'BYTEORDER'
+      substr_pos1 = -1
+      substr_pos2 = -1
+      substr_pos3 = -1
+      key_name1 = 'BYTEORDER'
       key_found = .false.
       read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
       do while(iostatus.eq.0)
-        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
-        if(substr_pos.gt.0)then
+        substr_pos1 = index(linebuffer080,trim(adjustl(key_name1)))
+        if(substr_pos1.gt.0)then
           key_found = .true.
-          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          space_pos = index(linebuffer080(substr_pos1:),' ')
           ! Found key, now read it
-          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          read(linebuffer080(space_pos+1:space_pos+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
           linebuffer050 = trim(adjustl(linebuffer050))
           read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)testkey
           if(testkey.eq.'M'.or.testkey.eq.'B')then
@@ -1236,17 +1279,19 @@
 
       ! NROWS
       rewind(fid_hdrfile)
-      substr_pos = -1
-      key_name = 'NROWS'
+      substr_pos1 = -1
+      substr_pos2 = -1
+      substr_pos3 = -1
+      key_name1 = 'NROWS'
       key_found = .false.
       read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
       do while(iostatus.eq.0)
-        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
-        if(substr_pos.gt.0)then
+        substr_pos1 = index(linebuffer080,trim(adjustl(key_name1)))
+        if(substr_pos1.gt.0)then
           key_found = .true.
-          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          space_pos = index(linebuffer080(substr_pos1:),' ')
           ! Found key, now read it
-          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          read(linebuffer080(space_pos+1:space_pos+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
           linebuffer050 = trim(adjustl(linebuffer050))
           read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)nlat_topo_fullgrid
           linebuffer050 = "Reading line from topo header file, NROWS"
@@ -1257,17 +1302,19 @@
 
       !NCOLS
       rewind(fid_hdrfile)
-      substr_pos = -1
-      key_name = 'NCOLS'
+      substr_pos1 = -1
+      substr_pos2 = -1
+      substr_pos3 = -1
+      key_name1 = 'NCOLS'
       key_found = .false.
       read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
       do while(iostatus.eq.0)
-        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
-        if(substr_pos.gt.0)then
+        substr_pos1 = index(linebuffer080,trim(adjustl(key_name1)))
+        if(substr_pos1.gt.0)then
           key_found = .true.
-          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          space_pos = index(linebuffer080(substr_pos1:),' ')
           ! Found key, now read it
-          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          read(linebuffer080(space_pos+1:space_pos+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
           linebuffer050 = trim(adjustl(linebuffer050))
           read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)nlon_topo_fullgrid
           linebuffer050 = "Reading line from topo header file, NCOLS"
@@ -1278,17 +1325,19 @@
 
       !NBITS
       rewind(fid_hdrfile)
-      substr_pos = -1
-      key_name = 'NBITS'
+      substr_pos1 = -1
+      substr_pos2 = -1
+      substr_pos3 = -1
+      key_name1 = 'NBITS'
       key_found = .false.
       read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
       do while(iostatus.eq.0)
-        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
-        if(substr_pos.gt.0)then
+        substr_pos1 = index(linebuffer080,trim(adjustl(key_name1)))
+        if(substr_pos1.gt.0)then
           key_found = .true.
-          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          space_pos = index(linebuffer080(substr_pos1:),' ')
           ! Found key, now read it
-          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          read(linebuffer080(space_pos+1:space_pos+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
           linebuffer050 = trim(adjustl(linebuffer050))
           read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)nbits
           linebuffer050 = "Reading line from topo header file, NBITS"
@@ -1314,17 +1363,19 @@
       rewind(fid_hdrfile)
       nodata_int = -9999
       nodata_sp  = -9999.0_sp
-      substr_pos = -1
-      key_name = 'NODATA'
+      substr_pos1 = -1
+      substr_pos2 = -1
+      substr_pos3 = -1
+      key_name1 = 'NODATA'
       key_found = .false.
       read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
       do while(iostatus.eq.0)
-        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
-        if(substr_pos.gt.0)then
+        substr_pos1 = index(linebuffer080,trim(adjustl(key_name1)))
+        if(substr_pos1.gt.0)then
           key_found = .true.
-          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          space_pos = index(linebuffer080(substr_pos1:),' ')
           ! Found key, now read it
-          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          read(linebuffer080(space_pos+1:space_pos+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
           linebuffer050 = trim(adjustl(linebuffer050))
           if(IsInt_topo)then
             read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)nodata_int
@@ -1339,17 +1390,24 @@
 
       !XDIM or DX or DLON
       rewind(fid_hdrfile)
-      substr_pos = -1
-      key_name = 'XDIM'
+      substr_pos1 = -1
+      substr_pos2 = -1
+      substr_pos3 = -1
+      key_name1 = 'XDIM'
+      key_name2 = 'DX'
+      key_name3 = 'DLON'
       key_found = .false.
       read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
       do while(iostatus.eq.0)
-        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
-        if(substr_pos.gt.0)then
+        substr_pos1 = index(linebuffer080,trim(adjustl(key_name1)))
+        substr_pos2 = index(linebuffer080,trim(adjustl(key_name2)))
+        substr_pos3 = index(linebuffer080,trim(adjustl(key_name3)))
+        if(substr_pos1.gt.0.or.substr_pos2.gt.0.or.substr_pos3.gt.0)then
           key_found = .true.
-          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          str_pos = maxval([substr_pos1,substr_pos2,substr_pos3])
+          space_pos = index(linebuffer080(str_pos:),' ')
           ! Found key, now read it
-          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          read(linebuffer080(space_pos+1:space_pos+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
           linebuffer050 = trim(adjustl(linebuffer050))
           read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)dlon_topo
           linebuffer050 = "Reading line from topo header file, XDIM"
@@ -1360,17 +1418,24 @@
 
       !YDIM or DY or DLAT
       rewind(fid_hdrfile)
-      substr_pos = -1
-      key_name = 'YDIM'
+      substr_pos1 = -1
+      substr_pos2 = -1
+      substr_pos3 = -1
+      key_name1 = 'YDIM'
+      key_name2 = 'DY'
+      key_name3 = 'DLAT'
       key_found = .false.
       read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
       do while(iostatus.eq.0)
-        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
-        if(substr_pos.gt.0)then
+        substr_pos1 = index(linebuffer080,trim(adjustl(key_name1)))
+        substr_pos2 = index(linebuffer080,trim(adjustl(key_name2)))
+        substr_pos3 = index(linebuffer080,trim(adjustl(key_name3)))
+        if(substr_pos1.gt.0.or.substr_pos2.gt.0.or.substr_pos3.gt.0)then
           key_found = .true.
-          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          str_pos = maxval([substr_pos1,substr_pos2,substr_pos3])
+          space_pos = index(linebuffer080(str_pos:),' ')
           ! Found key, now read it
-          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          read(linebuffer080(space_pos+1:space_pos+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
           linebuffer050 = trim(adjustl(linebuffer050))
           read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)dlat_topo
           linebuffer050 = "Reading line from topo header file, YDIM"
@@ -1382,19 +1447,26 @@
       !ULYMAP or ULY or ULLAT
       y_inverted = .false.  ! initialize
       rewind(fid_hdrfile)
-      substr_pos = -1
-      key_name = 'ULYMAP'
+      substr_pos1 = -1
+      substr_pos2 = -1
+      substr_pos3 = -1
+      key_name1 = 'ULYMAP'
+      key_name2 = 'ULY'
+      key_name3 = 'ULLAT'
       key_found = .false.
       read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
       do while(iostatus.eq.0)
-        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
-        if(substr_pos.gt.0)then
+        substr_pos1 = index(linebuffer080,trim(adjustl(key_name1)))
+        substr_pos2 = index(linebuffer080,trim(adjustl(key_name2)))
+        substr_pos3 = index(linebuffer080,trim(adjustl(key_name3)))
+        if(substr_pos1.gt.0.or.substr_pos2.gt.0.or.substr_pos3.gt.0)then
           key_found = .true.
+          str_pos = maxval([substr_pos1,substr_pos2,substr_pos3])
           ! If this key has been found, the upper-left is the start coordinate
           y_inverted = .true.
-          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          space_pos = index(linebuffer080(str_pos:),' ')
           ! Found key, now read it
-          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          read(linebuffer080(space_pos+1:space_pos+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
           linebuffer050 = trim(adjustl(linebuffer050))
           read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)starty_topo
           linebuffer050 = "Reading line from topo header file, ULYMAP"
@@ -1407,19 +1479,27 @@
         ! If we didn't find ULYMAP or something analogous above, then look for the lower-left LL
         !LLYMAP or LLY or LLLAT
         rewind(fid_hdrfile)
-        substr_pos = -1
-        key_name = 'LLYMAP'
+        substr_pos1 = -1
+        substr_pos2 = -1
+        substr_pos3 = -1
+        key_name1 = 'LLYMAP'
+        key_name2 = 'LLY'
+        key_name3 = 'LLLAT'
         key_found = .false.
         read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
         do while(iostatus.eq.0)
-          substr_pos = index(linebuffer080,trim(adjustl(key_name)))
-          if(substr_pos.gt.0)then
+          substr_pos1 = index(linebuffer080,trim(adjustl(key_name1)))
+          substr_pos2 = index(linebuffer080,trim(adjustl(key_name2)))
+          substr_pos3 = index(linebuffer080,trim(adjustl(key_name3)))
+          if(substr_pos1.gt.0.or.substr_pos2.gt.0.or.substr_pos3.gt.0)then
             key_found = .true.
+            str_pos = maxval([substr_pos1,substr_pos2,substr_pos3])
+
             ! If this key has been found, the upper-left is the start coordinate
             y_inverted = .true.
-            substr_pos2 = index(linebuffer080(substr_pos:),' ')
+            space_pos = index(linebuffer080(str_pos:),' ')
             ! Found key, now read it
-            read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+            read(linebuffer080(space_pos+1:space_pos+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
             linebuffer050 = trim(adjustl(linebuffer050))
             read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)starty_topo
             linebuffer050 = "Reading line from topo header file, LLYMAP"
@@ -1429,21 +1509,35 @@
         enddo
       endif
 
-      !ULXMAP or ULX or ULLON of LLXMAP or LLX or LLLON
+      !ULXMAP or ULX or ULLON or LLXMAP or LLX or LLLON
       rewind(fid_hdrfile)
-      substr_pos = -1
-      key_name = 'ULXMAP'
+      substr_pos1 = -1
+      substr_pos2 = -1
+      substr_pos3 = -1
+      if(y_inverted)then
+        key_name1 = 'ULXMAP'
+        key_name2 = 'ULX'
+        key_name3 = 'ULLON'
+      else
+        key_name1 = 'LLXMAP'
+        key_name2 = 'LLX'
+        key_name3 = 'LLLON'
+      endif
       key_found = .false.
       read(fid_hdrfile,'(a80)',iostat=iostatus,iomsg=iomessage)linebuffer080
       do while(iostatus.eq.0)
-        substr_pos = index(linebuffer080,trim(adjustl(key_name)))
-        if(substr_pos.gt.0)then
+        substr_pos1 = index(linebuffer080,trim(adjustl(key_name1)))
+        substr_pos2 = index(linebuffer080,trim(adjustl(key_name2)))
+        substr_pos3 = index(linebuffer080,trim(adjustl(key_name3)))
+        if(substr_pos1.gt.0.or.substr_pos2.gt.0.or.substr_pos3.gt.0)then
           key_found = .true.
+          str_pos = maxval([substr_pos1,substr_pos2,substr_pos3])
+
           ! If this key has been found, the upper-left is the start coordinate
           y_inverted = .true.
-          substr_pos2 = index(linebuffer080(substr_pos:),' ')
+          space_pos = index(linebuffer080(str_pos:),' ')
           ! Found key, now read it
-          read(linebuffer080(substr_pos2+1:substr_pos2+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
+          read(linebuffer080(space_pos+1:space_pos+50),'(a50)',iostat=ioerr,iomsg=iomessage)linebuffer050
           linebuffer050 = trim(adjustl(linebuffer050))
           read(linebuffer050,*,iostat=iostatus,iomsg=iomessage)startx_topo
           linebuffer050 = "Reading line from topo header file, ULXMAP"
@@ -1469,28 +1563,45 @@
         lat_topo_fullgrid(ilat) = starty_topo + (ilat-1)*dy
       enddo
 
-      ! Double-check that this lon/lat range suffices for the requested computational grid
-      nlon_topo_subgrid = floor((maxlon_Topo-minlon_Topo)/dlon_topo)
-      nlat_topo_subgrid = int((maxlat_Topo-minlat_Topo)/dlat_topo) 
-
-      if(minlon_Topo.lt.lon_topo_fullgrid(1)-0.5_dp*dlon_topo)then
-        minlon_Topo = minlon_Topo + 360.0_dp
-        maxlon_Topo = maxlon_Topo + 360.0_dp
+      ! Check that the computational grid is in the correct periodic mapping to the topo grid
+      if(minlon_Topo_comp.lt.lon_topo_fullgrid(1)-0.5_dp*dlon_topo)then
+        minlon_Topo_comp = minlon_Topo_comp + 360.0_dp
+        maxlon_Topo_comp = maxlon_Topo_comp + 360.0_dp
+      endif
+      if(minlon_Topo_Met.lt.lon_topo_fullgrid(1)-0.5_dp*dlon_topo)then
+        minlon_Topo_Met  = minlon_Topo_Met  + 360.0_dp
+        maxlon_Topo_Met  = maxlon_Topo_Met  + 360.0_dp
       endif
       start_lon_idx = -1
       cleft = lon_topo_fullgrid(1)-0.5_dp*dlon_topo
       do ilon=1,nlon_topo_fullgrid
         cright = lon_topo_fullgrid(ilon)+0.5_dp*dlon_topo
-        if(minlon_Topo.ge.cleft.and. &
-           minlon_Topo.lt.cright)then
+        if(minlon_Topo_Met.ge.cleft.and. &
+           minlon_Topo_Met.lt.cright.and.&
+           .not.Topo_UseCompGrid)then
           start_lon_idx = ilon
+        endif
+        if(minlon_Topo_comp.ge.cleft.and. &
+           minlon_Topo_comp.lt.cright.and.&
+           start_lon_idx.lt.0)then
+          start_lon_idx = ilon
+          Topo_UseCompGrid = .true.
         endif
         cleft = cright
       enddo
+      if(Topo_UseCompGrid)then
+        nlon_topo_subgrid = floor((maxlon_Topo_comp-minlon_Topo_comp)/dlon_topo)+1
+        nlat_topo_subgrid = int((maxlat_Topo_comp-minlat_Topo_comp)/dlat_topo)
+      else
+        nlon_topo_subgrid = floor((maxlon_Topo_Met-minlon_Topo_Met)/dlon_topo)+1
+        nlat_topo_subgrid = int((maxlat_Topo_Met-minlat_Topo_Met)/dlat_topo)
+      endif
+
       if(start_lon_idx.lt.1.or.start_lon_idx.gt.nlon_topo_fullgrid)then
         ! Couldn't find start x
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"Couldn't find start x of topo sub-grid"
+          write(errlog(io),*)"start_lon_idx = ",start_lon_idx
         endif;enddo
         stop 1
       endif
@@ -1510,19 +1621,50 @@
       do ilat=1,nlat_topo_fullgrid
         cright = lat_topo_fullgrid(ilat)+0.5_dp*dy
         if(y_inverted)then
-          if(minlat_Topo.lt.cleft.and.minlat_Topo.ge.cright)then
+          if(minlat_Topo_Met.lt.cleft.and.&
+             minlat_Topo_Met.ge.cright.and.&
+             .not.Topo_UseCompGrid)then
             start_lat_idx = ilat
           endif
-          if(maxlat_Topo.le.cleft.and.maxlat_Topo.gt.cright)then
+          if(minlat_Topo_comp.lt.cleft.and.&
+             minlat_Topo_comp.ge.cright.and.&
+             start_lat_idx.lt.0)then
+            start_lat_idx = ilat
+            Topo_UseCompGrid = .true.
+          endif
+
+          if(maxlat_Topo_Met.le.cleft.and.&
+             maxlat_Topo_Met.gt.cright)then
             end_lat_idx = ilat
+          endif
+          if(maxlat_Topo_Met.le.cleft.and.&
+             maxlat_Topo_Met.gt.cright)then
+            end_lat_idx = ilat
+            !Topo_UseCompGrid = .true.
           endif
         else
-          if(minlat_Topo.ge.cleft.and.minlat_Topo.lt.cright)then
+          if(minlat_Topo_Met.ge.cleft.and.&
+             minlat_Topo_Met.lt.cright.and.&
+             .not.Topo_UseCompGrid)then
             start_lat_idx = ilat
           endif
-          if(maxlat_Topo.gt.cleft.and.maxlat_Topo.le.cright)then
+          if(minlat_Topo_comp.ge.cleft.and.&
+             minlat_Topo_comp.lt.cright.and.&
+             start_lat_idx.lt.0)then
+            start_lat_idx = ilat
+            Topo_UseCompGrid = .true.
+          endif
+
+          if(maxlat_Topo_Met.gt.cleft.and.&
+             maxlat_Topo_Met.le.cright)then
             end_lat_idx = ilat
           endif
+          if(maxlat_Topo_comp.gt.cleft.and.&
+             maxlat_Topo_comp.le.cright)then
+            end_lat_idx = ilat
+            !Topo_UseCompGrid = .true.
+          endif
+
         endif
         cleft = cright
       enddo
@@ -1530,6 +1672,7 @@
         ! Couldn't find start y
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"Couldn't find start y of topo sub-grid."
+          write(errlog(io),*)"start_lat_idx = ",start_lat_idx
         endif;enddo
         stop 1
       endif
@@ -1537,24 +1680,24 @@
         ! Couldn't find end y
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"Couldn't find end y of topo sub-grid."
+          write(errlog(io),*)"end_lat_idx = ",end_lat_idx
         endif;enddo
         stop 1
       endif
 
-
       ! Define the sub-grid holding the topo data we need
-      allocate(lon_topo_subgrid(nlon_topo_subgrid))
-      allocate(lat_topo_subgrid(nlat_topo_subgrid))
+      allocate(loncc_topo_subgrid(nlon_topo_subgrid))
+      allocate(latcc_topo_subgrid(nlat_topo_subgrid))
       allocate(topo_subgrid(nlon_topo_subgrid,nlat_topo_subgrid))
 
-      lon_topo_subgrid(1:nlon_topo_subgrid) = lon_topo_fullgrid(start_lon_idx:end_lon_idx-1)
+      loncc_topo_subgrid(1:nlon_topo_subgrid) = lon_topo_fullgrid(start_lon_idx:end_lon_idx-1)
       if(y_inverted)then
         do ilat=1,nlat_topo_subgrid
           !lat_topo_subgrid(nlat_topo_subgrid-ilat+1) = lat_topo_fullgrid(start_lat_idx+1-ilat)
-          lat_topo_subgrid(ilat) = lat_topo_fullgrid(start_lat_idx+1-ilat)
+          latcc_topo_subgrid(ilat) = lat_topo_fullgrid(start_lat_idx+1-ilat)
         enddo
       else
-        lat_topo_subgrid(1:nlat_topo_subgrid) = lat_topo_fullgrid(start_lat_idx:end_lat_idx-1)
+        latcc_topo_subgrid(1:nlat_topo_subgrid) = lat_topo_fullgrid(start_lat_idx:end_lat_idx-1)
       endif
 
       if(IsInt_topo)then
@@ -1610,7 +1753,7 @@
               ! Loop over ilon so we can replace nodata with 0 for oceans
               do ilon=1,nlon_topo_subgrid
                 temp1_sp = temp1dsub_sp(ilon)
-                if(temp1_sp.eq.nodata_sp)temp1_sp=0.0_sp    ! Reset no-data to 0
+                if(abs(temp1_sp-nodata_sp).lt.EPS_SMALL)temp1_sp=0.0_sp    ! Reset no-data to 0
                 topo_subgrid(ilon,nlat_topo_subgrid-ilat+1) = temp1_sp
               enddo
             else
@@ -1618,7 +1761,7 @@
               do ilon=1,nlon_topo_subgrid
                 temp1_sp = temp1dsub_sp(ilon)
                 temp2_sp = LitEnd_4real(IsLitEnd_topo,temp1_sp)
-                if(temp2_sp.eq.nodata_sp)temp2_sp=0.0_sp    ! Reset no-data to 0
+                if(abs(temp2_sp-nodata_sp).lt.EPS_SMALL)temp2_sp=0.0_sp    ! Reset no-data to 0
                 topo_subgrid(ilon,nlat_topo_subgrid-ilat+1) = temp2_sp
               enddo
             endif
@@ -1659,8 +1802,8 @@
 !  the format as written by: Ash3d_PostProc 3d_tephra_fall.nc 15 1
 !
 !   Allocates and sets:
-!     lon_topo_subgrid
-!     lat_topo_subgrid
+!     loncc_topo_subgrid
+!     latcc_topo_subgrid
 !     topo_subgrid
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1668,7 +1811,7 @@
       subroutine Load_Topo_Gridded_ASCII
 
       use Ash3d_ASCII_IO,  only : &
-         A_nx,A_ny,A_XY,A_XYZ,A_xll,A_yll,A_dx,A_dy, &
+         A_nx,A_ny,A_XY,A_xll,A_yll,A_dx,A_dy, &
            read_2D_ASCII
 
       character(len=80) :: linebuffer080
@@ -1695,6 +1838,7 @@
 
       allocate(lon_topo_fullgrid(1:nlon_topo_fullgrid))
       allocate(lat_topo_fullgrid(1:nlat_topo_fullgrid))
+      ! Set up cell-centered coordinates
       do ilon = 1,nlon_topo_fullgrid
         lon_topo_fullgrid(ilon) = A_xll + dlon_topo*(ilon-1) + 0.5_dp*dlon_topo
       enddo
@@ -1703,20 +1847,32 @@
       enddo
 
       ! Double-check that this lon/lat range suffices for the requested computational grid
-      nlon_topo_subgrid = floor((maxlon_Topo-minlon_Topo)/dlon_topo)
-      nlat_topo_subgrid = int((maxlat_Topo-minlat_Topo)/dlat_topo)
+      nlon_topo_subgrid = floor((maxlon_Topo_Met-minlon_Topo_Met)/dlon_topo)
+      nlat_topo_subgrid = int((maxlat_Topo_Met-minlat_Topo_Met)/dlat_topo)
 
-      if(minlon_Topo.lt.lon_topo_fullgrid(1)-0.5_dp*dlon_topo)then
-        minlon_Topo = minlon_Topo + 360.0_dp
-        maxlon_Topo = maxlon_Topo + 360.0_dp
+      ! Check that the computational grid is in the correct periodic mapping to the topo grid
+      if(minlon_Topo_comp.lt.lon_topo_fullgrid(1)-0.5_dp*dlon_topo)then
+        minlon_Topo_comp = minlon_Topo_comp + 360.0_dp
+        maxlon_Topo_comp = maxlon_Topo_comp + 360.0_dp
+      endif
+      if(minlon_Topo_Met.lt.lon_topo_fullgrid(1)-0.5_dp*dlon_topo)then
+        minlon_Topo_Met  = minlon_Topo_Met  + 360.0_dp
+        maxlon_Topo_Met  = maxlon_Topo_Met  + 360.0_dp
       endif
       start_lon_idx = -1
       cleft = lon_topo_fullgrid(1)-0.5_dp*dlon_topo
       do ilon=1,nlon_topo_fullgrid
         cright = lon_topo_fullgrid(ilon)+0.5_dp*dlon_topo
-        if(minlon_Topo.ge.cleft.and. &
-           minlon_Topo.lt.cright)then
+        if(minlon_Topo_Met.ge.cleft.and. &
+           minlon_Topo_Met.lt.cright.and.&
+           .not.Topo_UseCompGrid)then
           start_lon_idx = ilon
+        endif
+        if(minlon_Topo_comp.ge.cleft.and. &
+           minlon_Topo_comp.lt.cright.and.&
+           start_lon_idx.lt.0)then
+          start_lon_idx = ilon
+          Topo_UseCompGrid = .true.
         endif
         cleft = cright
       enddo
@@ -1724,17 +1880,23 @@
         ! Couldn't find start x
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"Couldn't find start x of topo sub-grid"
+          write(errlog(io),*)"start_lon_idx = ",start_lon_idx
         endif;enddo
         stop 1
       endif
-      if(start_lon_idx+nlon_topo_subgrid.gt.nlon_topo_fullgrid)then
+      if(Topo_UseCompGrid)then
+        nlon_topo_subgrid = floor((maxlon_Topo_comp-minlon_Topo_comp)/dlon_topo)+1
+        nlat_topo_subgrid = int((maxlat_Topo_comp-minlat_Topo_comp)/dlat_topo)
+      endif
+
+      if(start_lon_idx+nlon_topo_subgrid-1.gt.nlon_topo_fullgrid)then
         !wrapgrid = .true.
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"ERROR: Cannot use grid-wrapping for ASCII data, at the moment."
         endif;enddo
         stop 1
       else
-        end_lon_idx = start_lon_idx+nlon_topo_subgrid
+        end_lon_idx = start_lon_idx+nlon_topo_subgrid-1
       endif
 
       start_lat_idx = -1
@@ -1742,10 +1904,24 @@
       cleft = lat_topo_fullgrid(1)-0.5_dp*dlat_topo
       do ilat=1,nlat_topo_fullgrid
         cright = lat_topo_fullgrid(ilat)+0.5_dp*dlat_topo
-        if(minlat_Topo.ge.cleft.and.minlat_Topo.lt.cright)then
+        if(minlat_Topo_Met.ge.cleft.and.&
+           minlat_Topo_Met.lt.cright.and.&
+           .not.Topo_UseCompGrid)then
           start_lat_idx = ilat
         endif
-        if(maxlat_Topo.gt.cleft.and.maxlat_Topo.le.cright)then
+        if(minlat_Topo_comp.ge.cleft.and.&
+           minlat_Topo_comp.lt.cright.and.&
+           start_lat_idx.lt.0)then
+          start_lat_idx = ilat
+          Topo_UseCompGrid = .true.
+        endif
+        if(maxlat_Topo_Met.gt.cleft.and.&
+           maxlat_Topo_Met.le.cright)then
+          end_lat_idx = ilat
+        endif
+        if(maxlat_Topo_comp.gt.cleft.and.&
+           maxlat_Topo_comp.le.cright.and.&
+           end_lat_idx.lt.0)then
           end_lat_idx = ilat
         endif
         cleft = cright
@@ -1754,6 +1930,7 @@
         ! Couldn't find start y
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"Couldn't find start y of topo sub-grid."
+          write(errlog(io),*)"start_lat_idx = ",start_lat_idx
         endif;enddo
         stop 1
       endif
@@ -1761,16 +1938,22 @@
         ! Couldn't find end y
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"Couldn't find end y of topo sub-grid."
+          write(errlog(io),*)"end_lat_idx = ",end_lat_idx
         endif;enddo
         stop 1
       endif
 
       ! Define the sub-grid holding the topo data we need
-      allocate(lon_topo_subgrid(nlon_topo_subgrid))
-      allocate(lat_topo_subgrid(nlat_topo_subgrid))
+      allocate(loncc_topo_subgrid(nlon_topo_subgrid))
+      allocate(latcc_topo_subgrid(nlat_topo_subgrid))
       allocate(topo_subgrid(nlon_topo_subgrid,nlat_topo_subgrid))
 
-      stop 8
+      loncc_topo_subgrid(1:nlon_topo_subgrid) = lon_topo_fullgrid(start_lon_idx:start_lon_idx+nlon_topo_subgrid-1)
+      latcc_topo_subgrid(1:nlat_topo_subgrid) = lat_topo_fullgrid(start_lat_idx:start_lat_idx+nlat_topo_subgrid-1)
+
+      topo_subgrid(1:nlon_topo_subgrid,1:nlat_topo_subgrid) = &
+        real(A_XY(start_lon_idx:start_lon_idx+nlon_topo_subgrid-1,&
+                  start_lat_idx:start_lat_idx+nlat_topo_subgrid-1),kind=sp)
 
       end subroutine Load_Topo_Gridded_ASCII
 
@@ -1793,9 +1976,6 @@
 
       subroutine Interp_Topo
 
-      use global_param,  only : &
-        EPS_SMALL
-
       use mesh,          only : &
          nxmax,nymax,nzmax,lon_cc_pd,lat_cc_pd,z_cc_pd,xy2ll_ylat,&
          xy2ll_xlon,IsLatLon
@@ -1805,10 +1985,23 @@
       real(kind=ip) :: a1,a2,a3,a4
       real(kind=ip) :: xc,yc,xfrac,yfrac
       integer       :: ilon,ilat
+      real(kind=dp), dimension(:)    ,allocatable :: latcl_topo_subgrid
+      real(kind=dp), dimension(:)    ,allocatable :: loncl_topo_subgrid
 
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)"Interpolating topographic data"
       endif;enddo
+      allocate(loncl_topo_subgrid(nlon_topo_subgrid+1))
+      allocate(latcl_topo_subgrid(nlat_topo_subgrid+1))
+
+      do i=1,nlon_topo_subgrid
+        loncl_topo_subgrid(i) = loncc_topo_subgrid(i)-0.5_dp*dlon_topo
+      enddo
+      loncl_topo_subgrid(nlon_topo_subgrid+1)=loncl_topo_subgrid(nlon_topo_subgrid)+dlon_topo
+      do j=1,nlat_topo_subgrid
+        latcl_topo_subgrid(j) = latcc_topo_subgrid(j)-0.5_dp*dlat_topo
+      enddo
+      latcl_topo_subgrid(nlat_topo_subgrid+1)=latcl_topo_subgrid(nlat_topo_subgrid)+dlat_topo
 
       ! Loop over all the computational grid points
       do i=1,nxmax
@@ -1823,40 +2016,127 @@
             ophi = xy2ll_ylat(i,j)
           endif
           if(olam.gt. 180.0_ip.and.&
-             lon_topo_subgrid(nlon_topo_subgrid).lt.180.0_ip)olam=olam-360.0_ip
+             loncc_topo_subgrid(nlon_topo_subgrid).lt.180.0_ip)olam=olam-360.0_ip
           if(olam.lt.-180.0_ip)olam=olam+360.0_ip
 
+          ! Double-check that olam,ophi maps onto the computation grid
+          if(olam.lt.loncl_topo_subgrid(1).or.&
+             olam.gt.loncl_topo_subgrid(nlon_topo_subgrid+1))then
+            do io=1,2;if(VB(io).le.verbosity_error)then
+              write(errlog(io),*)"ERROR: Computational grid point mapping outside of topo grid (lon)."
+              write(errlog(io),*)'olam                                   = ',olam
+              write(errlog(io),*)'dlom_topo                              = ',dlon_topo
+              write(errlog(io),*)'loncl_topo_subgrid(1)                  = ',loncl_topo_subgrid(1)
+              write(errlog(io),*)'loncl_topo_subgrid(nlon_topo_subgrid+1)= ',loncl_topo_subgrid(nlon_topo_subgrid+1)
+            endif;enddo
+            stop 1
+          endif
+          if(ophi.lt.latcl_topo_subgrid(1).or.&
+             ophi.gt.latcl_topo_subgrid(nlat_topo_subgrid+1))then
+            do io=1,2;if(VB(io).le.verbosity_error)then
+              write(errlog(io),*)"ERROR: Computational grid point mapping outside of topo grid (lat)."
+              write(errlog(io),*)'ophi                                   = ',ophi
+              write(errlog(io),*)'dlat_topo                              = ',dlat_topo
+              write(errlog(io),*)'latcl_topo_subgrid(1)                  = ',latcl_topo_subgrid(1)
+              write(errlog(io),*)'latcl_topo_subgrid(nlat_topo_subgrid+1)= ',latcl_topo_subgrid(nlat_topo_subgrid+1)
+            endif;enddo
+            stop 1
+          endif
           ! Now find the corresponding topo point
-          ilon = floor((olam-lon_topo_subgrid(1))/dlon_topo) + 1
-          ilat = floor((ophi-lat_topo_subgrid(1))/dlat_topo) + 1
-          if(olam-lon_topo_subgrid(ilon).lt.0.0_ip)then
+          ! We need to find where olam,ophi maps onto the grid defined by the cell-centers
+          ilon = floor((olam-loncl_topo_subgrid(1))/dlon_topo) + 1
+          ilat = floor((ophi-latcl_topo_subgrid(1))/dlat_topo) + 1
+          ! Adjust for the cases where we have the comp point right on top of the topo point
+          if(olam.lt.loncl_topo_subgrid(ilon))then
+            ilon = ilon-1
+          elseif(olam.gt.loncl_topo_subgrid(ilon+1))then
+            ilon = ilon+1
+          endif
+          if(ophi.lt.latcl_topo_subgrid(ilat))then
+            ilat = ilat-1
+          elseif(ophi.gt.latcl_topo_subgrid(ilat+1))then
+            ilat = ilat+1
+          endif
+
+          ! Double-check that olam is between left and right sides of cell
+          if(olam.lt.loncl_topo_subgrid(ilon).or.&
+             olam.gt.loncl_topo_subgrid(ilon+1))then
+            write(*,*)"Lon error: ",ilon,&
+                      loncl_topo_subgrid(ilon),&
+                      olam,&
+                      loncl_topo_subgrid(ilon+1)
+            stop 101
+          endif
+          if(ophi.lt.latcl_topo_subgrid(ilat).or.&
+             ophi.gt.latcl_topo_subgrid(ilat+1))then
+            write(*,*)"Lat error: ",ilat,&
+                      latcl_topo_subgrid(ilat),&
+                      ophi,&
+                      latcl_topo_subgrid(ilat+1)
+            stop 102
+          endif
+
+          if(olam-loncl_topo_subgrid(ilon).lt.0.0_ip)then
             ilon=ilon-1
-          elseif(olam-lon_topo_subgrid(ilon).ge.dlon_topo)then
+          elseif(olam-loncl_topo_subgrid(ilon+1).ge.dlon_topo)then
             ilon=ilon+1
           endif
-          if(ophi-lat_topo_subgrid(ilat).lt.0.0_ip)then
+          if(ophi-latcl_topo_subgrid(ilat).lt.0.0_ip)then
             ilat=ilat-1
-          elseif(ophi-lat_topo_subgrid(ilat).ge.dlat_topo)then
+          elseif(ophi-latcl_topo_subgrid(ilat+1).ge.dlat_topo)then
             ilat=ilat+1
           endif
 
           ! No interp; just lower-left corner
           topo_comp(i,j) = topo_subgrid(ilon,ilat)
 
-          ! Bilinear interpolation
-          xfrac=(olam-lon_topo_subgrid(ilon))/(lon_topo_subgrid(ilon+1)-lon_topo_subgrid(ilon))
-          yfrac=(ophi-lat_topo_subgrid(ilat))/(lat_topo_subgrid(ilat+1)-lat_topo_subgrid(ilat))
+          ! Bilinear interpolation (between cell-centers)
+          if(ilon.eq.0)then
+            ilon=1
+            xfrac=0.0_ip
+          elseif(ilon.ge.nlon_topo_subgrid)then
+            ilon=nlon_topo_subgrid-1
+            xfrac=1.0_ip
+          else
+            xfrac=(olam-loncl_topo_subgrid(ilon))/dlon_topo
+          endif
+          if(ilat.eq.0)then
+            ilat=1
+            yfrac=0.0_ip
+          elseif(ilat.ge.nlat_topo_subgrid)then
+            ilat=nlat_topo_subgrid-1
+            yfrac=1.0_ip
+          else
+            yfrac=(ophi-latcl_topo_subgrid(ilat))/dlat_topo
+          endif
           xc = 1.0_ip-xfrac
           yc = 1.0_ip-yfrac
-          if(xc.gt.1.0_ip+EPS_SMALL.or.xc.lt.0.0_ip-EPS_SMALL)then
-            do io=1,2;if(VB(io).le.verbosity_error)then
-              write(errlog(io),*)'lon ',i,olam,lon_topo_subgrid(ilon),xc
-            endif;enddo
+          ! Issue error to stdout if point plots more than 1% of de or dn outside of cell
+!          if(xc.gt.1.01_ip.or.xc.lt.-0.01_ip)then
+!            do io=1,2;if(VB(io).le.verbosity_error)then
+!              write(errlog(io),*)'lon ',i,olam,lon_topo_subgrid(ilon),xc,xfrac
+!            endif;enddo
+!          endif
+!          if(yc.gt.1.01_ip.or.yc.lt.-0.01_ip)then
+!            do io=1,2;if(VB(io).le.verbosity_error)then
+!              write(errlog(io),*)'lat ',j,ophi,lon_topo_subgrid(ilat),yc,yfrac
+!            endif;enddo
+!          endif
+
+          ! Reset these factors if they are just slightly outside of the cell
+          if(xc.gt.1.0_ip)then
+            xc   =1.0_ip
+            xfrac=0.0_ip
+          elseif(xc.lt.0.0_ip)then
+            xc   =0.0_ip
+            xfrac=1.0_ip
           endif
-          if(yc.gt.1.0_ip+EPS_SMALL.or.yc.lt.0.0_ip-EPS_SMALL)then
-            do io=1,2;if(VB(io).le.verbosity_error)then
-              write(errlog(io),*)'lat ',j,ophi,lat_topo_subgrid(ilat),yc
-            endif;enddo
+          if(yc.gt.1.0_ip)then
+            yc   =1.0_ip
+            yfrac=0.0_ip
+          elseif(yc.lt.0.0_ip)then
+            yc   =0.0_ip
+            yfrac=1.0_ip
           endif
 
           a1=xc*yc
@@ -1864,10 +2144,10 @@
           a3=xfrac*yfrac
           a4=yfrac*xc
 
-          topo_comp(i,j) = a1*topo_subgrid(ilon  ,ilat  ) + &
-                           a2*topo_subgrid(ilon+1,ilat  ) + &
-                           a3*topo_subgrid(ilon+1,ilat+1) + &
-                           a4*topo_subgrid(ilon  ,ilat+1)
+          topo_comp(i,j) = real(a1*topo_subgrid(ilon  ,ilat  ) + &
+                                a2*topo_subgrid(ilon+1,ilat  ) + &
+                                a3*topo_subgrid(ilon+1,ilat+1) + &
+                                a4*topo_subgrid(ilon  ,ilat+1),kind=sp)
           topo_comp(i,j) = topo_comp(i,j) / 1000.0_sp ! convert to km
 
           topo_indx(i,j) = 0
@@ -1880,7 +2160,8 @@
           enddo
         enddo
       enddo
-      deallocate(lon_topo_subgrid,lat_topo_subgrid,topo_subgrid)
+      deallocate(loncc_topo_subgrid,latcc_topo_subgrid,topo_subgrid)
+      deallocate(loncl_topo_subgrid,latcl_topo_subgrid)
 
       if(.not.IsLatLon) then
         deallocate(xy2ll_ylat,xy2ll_xlon)
@@ -1915,7 +2196,7 @@
 
       use mesh,          only : &
          nxmax,nymax,nzmax,IsLatLon,dx,dy,de,dn,lat_cc_pd,lon_cc_pd,&
-         x_cc_pd,y_cc_pd,z_cc_pd,xLL,yLL,lonLL,latLL
+         x_cc_pd,y_cc_pd,z_cc_pd,lonLL,latLL
 
       use MetReader,       only : &
          MR_minlen,x_submet_sp,y_submet_sp,nx_submet,ny_submet,MR_dx_met,MR_dy_met,&
@@ -1931,11 +2212,9 @@
       real(kind=ip) :: fac_1,r,temp1,wg,char_len,norm
       real(kind=ip) :: rad
       real(kind=sp) :: topo_smooth_comp(nxmax,nymax)
-      real(kind=sp) :: topo_smooth_met(nx_submet,ny_submet)
       real(kind=sp) :: xin,yin
 
       integer :: nx,ny
-      real(kind=sp),dimension(:,:),allocatable :: topo_smooth
       integer :: ii,ipad,jj,jpad
 
       ! We smooth the topographic data for both the computational grid
