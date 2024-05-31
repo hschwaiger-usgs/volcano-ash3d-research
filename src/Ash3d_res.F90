@@ -45,7 +45,7 @@
          ivent,jvent,nxmax,nymax,nzmax,nsmax,ts0,ts1,ZPADDING,dz_vec_pd,z_cc_pd
 
       use solution,      only : &
-         concen_pd,DepositGranularity,StopValue,aloft_percent_remaining, &
+         concen_pd,DepositGranularity,StopValue_FracAshDep,aloft_percent_remaining, &
          SourceCumulativeVol,dep_vol,aloft_vol,outflow_vol,tot_vol,vf_pd
 
       use Output_Vars,   only : &
@@ -954,7 +954,7 @@
         ! Check stop conditions
         !  If any of these is true, then the time loop will stop
            ! Stops if there is less than 1% of ash aloft in the domain
-        StopConditions(1) = (aloft_percent_remaining.lt.(1.0_ip-StopValue))
+        StopConditions(1) = (aloft_percent_remaining.lt.(1.0_ip-StopValue_FracAshDep))
            ! Normal stop condition if simulation exceeds alloted time
         StopConditions(2) = (time.ge.Simtime_in_hours)
            ! Normal stop condition when nothing is left to advect
@@ -993,7 +993,7 @@
           StopTimeLoop = .false.
         endif
       enddo  !loop over itime
-              !  ((dep_percent_accumulated.le.StopValue).and. &
+              !  ((dep_percent_accumulated.le.StopValue_FracAshDep).and. &
               !    (time.lt.Simtime_in_hours)        .and. &
               !    (n_gs_aloft.gt.0))
 
@@ -1007,7 +1007,7 @@
          (StopConditions(1).eqv..true.))then
         ! Normal stop condition set by user tracking the deposit
         do io=1,2;if(VB(io).le.verbosity_info)then
-          write(outlog(io),*)"Percent accumulated/exited exceeds ",StopValue
+          write(outlog(io),*)"Percent accumulated/exited exceeds ",StopValue_FracAshDep
         endif;enddo
       endif
       if((CheckConditions(2).eqv..true.).and.&
