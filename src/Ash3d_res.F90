@@ -284,7 +284,6 @@
           endif;enddo
           call input_data_Source_Gas
         endif
-        stop 55
 #endif
 #ifdef SRC_SAT
         if(OPTMOD_names(i).eq.'SRC_SAT')then

@@ -344,18 +344,14 @@
           ! Read name of file outlining the contour of the region
 
         elseif(EruptGasSrcStruc(i).eq.4)then
-          ! Read the lon/lat of the point
+          ! First try to read the lon/lat of the point
           read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, & ! yyyy mm dd
                                          dum1_ip, dum2_ip, dum3_ip,  & ! h.hh duration PlmH
                                          EruptGasMass(i),            & ! Total Mass in kt
                                          EruptGasSpeciesID(i),       & ! Species ID
                                          EruptGasSrcStruc(i),        & ! Source structure code
                                          EruptGasVentLon(i),EruptGasVentLat(i)  ! point coordinates
-          do io=1,2;if(VB(io).le.verbosity_error)then
-            write(errlog(io),*)"Gas Point source not yet implemented"
-          endif;enddo
-          stop 1
-
+          ! If unsuccessful, then uset vent lon,lat from Block 1
         elseif(EruptGasSrcStruc(i).eq.5)then
           ! Read the lon/lat of the vertical line source
           read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, & ! yyyy mm dd
@@ -434,17 +430,17 @@
           ! compuataional grid, etc.
           EruptGasVentLon_i(i) = int((EruptGasVentLon(i)-lonLL)/de) + 1
           EruptGasVentLat_j(i) = int((EruptGasVentLat(i)-latLL)/dn) + 1
-          do io=1,2;if(VB(io).le.verbosity_info)then
-            write(outlog(io),*)EruptGasVentLon(i),lonLL,de,EruptGasVentLon_i(i)
-            write(outlog(io),*)EruptGasVentLat(i),latLL,dn,EruptGasVentLat_j(i)
-          endif;enddo
+          !do io=1,2;if(VB(io).le.verbosity_info)then
+          !  write(outlog(io),*)EruptGasVentLon(i),lonLL,de,EruptGasVentLon_i(i)
+          !  write(outlog(io),*)EruptGasVentLat(i),latLL,dn,EruptGasVentLat_j(i)
+          !endif;enddo
         endif
         ! Convert erupted mass (in kt) to mass rate (kg/hr)
-        EruptGasMassRate(i) = EruptGasMass(i)*1.0e6/dum2_ip
+        EruptGasMassRate(i) = EruptGasMass(i)*1.0e6/e_Duration(i)
       enddo
 
       ! Initialize some eruption values
-      e_Duration  = 0.0_ip
+      !e_Duration  = 0.0_ip
       e_Volume    = 0.0_ip
 
       ! Now read to the end of the input file and read the Optional Modudle
