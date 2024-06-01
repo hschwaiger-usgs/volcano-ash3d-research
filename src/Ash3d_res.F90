@@ -991,7 +991,7 @@
           StopTimeLoop = .false.
         endif
       enddo  !loop over itime
-              !  ((dep_percent_accumulated.le.StopValue).and. &
+              !  ((dep_percent_accumulated.le.StopValue_FracAshDep).and. &
               !    (time.lt.Simtime_in_hours)        .and. &
               !    (n_gs_aloft.gt.0))
 

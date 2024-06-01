@@ -485,7 +485,7 @@
               ngas_max = 0
             elseif(ngas_max.gt.23)then
               do io=1,2;if(VB(io).le.verbosity_error)then
-                write(errlog(io),*)"To many gas species."
+                write(errlog(io),*)"Too many gas species."
               endif;enddo
               stop 1
             else
