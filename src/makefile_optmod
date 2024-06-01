@@ -129,12 +129,18 @@ DIFFMETH=CRANKNIC
 #Source_Gas.o           \
 #Ocean_Currents.o
 
-OPTMODS_FPP= -x f95-cpp-input -DTOPO -DLC -DVARDIFF -DSRC_RESUSP
-OPTMODS_OBJ=           \
+# Resuspension runs
+#OPTMODS_FPP= -x f95-cpp-input -DTOPO -DLC -DVARDIFF -DSRC_RESUSP
+#OPTMODS_OBJ=           \
 Topography.o           \
 LandCover.o            \
 Variable_Diffusivity.o \
 Source_Resuspension.o
+
+# SO2 cloud runs
+OPTMODS_FPP= -x f95-cpp-input -DSRC_GAS
+OPTMODS_OBJ=           \
+Source_Gas.o
 
 # Ash3d can log some useful information about a run such as the username of 
 # account that ran the case, then hostname of the system and run directory
@@ -385,6 +391,7 @@ clean:
 install:
 	install -d $(INSTALLDIR)/bin $(INSTALLDIR)/share/post_proc
 	install -m 755 ../bin/$(ASH3DEXEC) $(INSTALLDIR)/bin/$(ASH3DEXEC)
+	install -m 755 ../bin/Ash3d $(INSTALLDIR)/bin/Ash3d
 
 uninstall:
 	rm -f $(INSTALLDIR)/bin/$(ASH3DEXEC)

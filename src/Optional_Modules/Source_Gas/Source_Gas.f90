@@ -31,15 +31,20 @@
 
       logical            :: setSrcGasSurf_Perim
       character (len=60) :: SrcGasSurf_PerimInfile
+      character (len=60) :: SrcGasSurf_Inputfile
       integer            :: SrcGasSurf_MaskCount
 
       integer :: iconcen_gas_start
       integer :: ngas_max
       real(kind=ip),dimension(:),allocatable        :: EruptGasMassRate
+      real(kind=ip),dimension(:),allocatable        :: EruptGasMass
       integer      ,dimension(:),allocatable        :: EruptGasSpeciesID
       integer      ,dimension(:),allocatable,public :: EruptGasSrcStruc
       real(kind=ip),dimension(:),allocatable        :: EruptGasVentLon
       real(kind=ip),dimension(:),allocatable        :: EruptGasVentLat
+      real(kind=ip),dimension(:),allocatable        :: EruptGasFisLon
+      real(kind=ip),dimension(:),allocatable        :: EruptGasFisLat
+      real(kind=ip),dimension(:),allocatable        :: EruptGasSuzK
 
       integer,dimension(:),allocatable              :: EruptGasVentLon_i
       integer,dimension(:),allocatable              :: EruptGasVentLat_j
@@ -216,10 +221,14 @@
       allocate(EruptGasSpeciesID(neruptions))
       allocate(EruptGasSrcStruc(neruptions))
       allocate(EruptGasMassRate(neruptions))
+      allocate(EruptGasMass(neruptions))
       allocate(EruptGasVentLon(neruptions))
       allocate(EruptGasVentLat(neruptions))
       allocate(EruptGasVentLon_i(neruptions))
       allocate(EruptGasVentLat_j(neruptions))
+      allocate(EruptGasFisLon(neruptions))
+      allocate(EruptGasFisLat(neruptions))
+      allocate(EruptGasSuzK(neruptions))
 
       ! If we've made it here, the requested source is a gas source, open
       ! the input file again to get needed info
@@ -227,67 +236,176 @@
 
       ! For custom sources, we want to read down to the source block
       !   Read first comment block
-      read(10,'(a80)')linebuffer080
-      read(linebuffer080,*)testkey
+      read(10,'(a120)')linebuffer120
+      read(linebuffer120,*)testkey
       do while(testkey.eq.'#'.or.testkey.eq.'*')
          ! Line is a comment, read next line
-        read(10,'(a80)')linebuffer080
-        read(linebuffer080,*)testkey
+        read(10,'(a120)')linebuffer120
+        read(linebuffer120,*)testkey
       enddo
       ! Read through block 1
       do while(testkey.ne.'#'.and.testkey.ne.'*')
          ! Line is a comment, read next line
-        read(10,'(a80)')linebuffer080
-        read(linebuffer080,*)testkey
+        read(10,'(a120)')linebuffer120
+        read(linebuffer120,*)testkey
       enddo
       ! Read next block header
-      read(10,'(a80)')linebuffer080
-      read(linebuffer080,*)testkey
+      read(10,'(a120)')linebuffer120
+      read(linebuffer120,*)testkey
       do while(testkey.eq.'#'.or.testkey.eq.'*')
          ! Line is a comment, read next line
-        read(10,'(a80)')linebuffer080
-        read(linebuffer080,*)testkey
+        read(10,'(a120)')linebuffer120
+        read(linebuffer120,*)testkey
       enddo
 
+      write(*,*)linebuffer120
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)"Start reading gas source."
         write(outlog(io),*)neruptions," eruptions"
       endif;enddo
+      ! Parameters are (1-4) start time (yyyy mm dd h.hh (UT)); (5) duration (hrs);  
+      !               (6) plume height (km);
+      !               (7) eruped mass (kt or 1.0e6 kg);
+      !               (8) SpeciesID
+      !               (9) GasSrcStruc
+      !                 if 0 = source-term file                GasSrcStruc=0 (10)    filename
+      !                    1 = point on surface (vent)         GasSrcStruc=1 (10-11) pt_lon pt_lat
+      !                    2 = line on surface (fissure)       GasSrcStruc=2 (10-13) pt1_lon pt1_lat pt2_lon pt2_lat
+      !                    3 = area on surface (like a region) GasSrcStruc=3 (10)    filename
+      !                    4 = point source                    GasSrcStruc=4 (10)    pt_lon pt_lat
+      !                    5 = vertical line source            GasSrcStruc=5 (10-11) pt_lon pt_lat (line from surf to PlmH)
+      !                    6 = vertical Suzuki source          GasSrcStruc=6 (10)    pt_lon pt_lat k
+      !                    7 = vertical profile source         GasSrcStruc=7 (10-11) pt_lon pt_lat dz nz    + additional line with fractions
 
-      !       EruptGasSrcStruc => 1 = distributed surface source (like a region)
-      !                           2 = point on surface (vent)
-      !                           3 = line on surface (fissure)
-      !                           4 = vertical line source
-      !                           5 = vertical profile source
-      !       EruptGasMassRate      = tonnes/day
       setSrcGasSurf_Perim = .false.
       do i=1,neruptions
         !read start time, duration, plume height, volume of each pulse
-        read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, &
-                                       dum1_ip, dum2_ip, dum3_ip,  &
-                                       EruptGasSpeciesID(i),EruptGasSrcStruc(i),&
-                                       EruptGasMassRate(i)
+        read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, & ! yyyy mm dd
+                                       dum1_ip, dum2_ip, dum3_ip,  & ! h.hh duration PlmH
+                                       EruptGasMass(i),            & ! Total Mass in kt
+                                       EruptGasSpeciesID(i),       & ! Species ID
+                                       EruptGasSrcStruc(i)           ! Source structure code
 
-        if(EruptGasSrcStruc(i).eq.1)then
+        if(EruptGasSrcStruc(i).eq.0)then
+          ! This is a gas source driven by a source file
+          read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, & ! yyyy mm dd
+                                         dum1_ip, dum2_ip, dum3_ip,  & ! h.hh duration PlmH
+                                         EruptGasMass(i),            & ! Total Mass in kt
+                                         EruptGasSpeciesID(i),       & ! Species ID
+                                         EruptGasSrcStruc(i),        & ! Source structure code
+                                         SrcGasSurf_Inputfile          ! Source input file
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)"Gas source from file not yet implemented"
+          endif;enddo
+          stop 1
+
+        elseif(EruptGasSrcStruc(i).eq.1)then
+          ! Read the lon/lat of the point on surface
+          read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, & ! yyyy mm dd
+                                         dum1_ip, dum2_ip, dum3_ip,  & ! h.hh duration PlmH
+                                         EruptGasMass(i),            & ! Total Mass in kt
+                                         EruptGasSpeciesID(i),       & ! Species ID
+                                         EruptGasSrcStruc(i),        & ! Source structure code
+                                         EruptGasVentLon(i),EruptGasVentLat(i)  ! vent coordinates
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)"Gas surface point source not yet implemented"
+          endif;enddo
+          stop 1
+
+        elseif(EruptGasSrcStruc(i).eq.2)then
+          ! line on surface (fissure)
+          ! Read the start lon/lat and end lon/lat of fissure
+          read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, & ! yyyy mm dd
+                                         dum1_ip, dum2_ip, dum3_ip,  & ! h.hh duration PlmH
+                                         EruptGasMass(i),            & ! Total Mass in kt
+                                         EruptGasSpeciesID(i),       & ! Species ID
+                                         EruptGasSrcStruc(i),        & ! Source structure code
+                                         EruptGasVentLon(i),EruptGasVentLat(i), &  ! fissure coordinates start
+                                         EruptGasFisLon(i),EruptGasFisLat(i)       ! fissure coordinates end
+
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)"Gas Fissure source not yet implemented"
+          endif;enddo
+          stop 1
+        elseif(EruptGasSrcStruc(i).eq.3)then
           ! This is a distributed source over a surface region
           ! Only one distributed region is allowed.  If this is the first dist. source, then
           ! read the file name
           if(.not.setSrcGasSurf_Perim)then ! This is initialized to .false. and only set to
                                            ! true if a distributed source has be read
-            read(linebuffer120,*) dum1_int,dum2_int,dum3_int, &
-                                  dum1_ip, dum2_ip, dum3_ip,  &
-                                  EruptGasSpeciesID(i),EruptGasSrcStruc(i),&
-                                  EruptGasMassRate(i),SrcGasSurf_PerimInfile
+            read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, & ! yyyy mm dd
+                                           dum1_ip, dum2_ip, dum3_ip,  & ! h.hh duration PlmH
+                                           EruptGasMass(i),            & ! Total Mass in kt
+                                           EruptGasSpeciesID(i),       & ! Species ID
+                                           EruptGasSrcStruc(i),        & ! Source structure code
+                                           SrcGasSurf_PerimInfile        ! name of perimeter file
             setSrcGasSurf_Perim = .true.
           endif
           ! Read name of file outlining the contour of the region
-        elseif(EruptGasSrcStruc(i).eq.2)then
-          ! Read the lon/lat of the point on surface
-          read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int,dum1_ip, &
-                                dum2_ip,dum3_ip,&
-                                EruptGasSpeciesID(i),EruptGasSrcStruc(i),EruptGasMassRate(i), &
-                                EruptGasVentLon(i),EruptGasVentLat(i)
 
+        elseif(EruptGasSrcStruc(i).eq.4)then
+          ! Read the lon/lat of the point
+          read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, & ! yyyy mm dd
+                                         dum1_ip, dum2_ip, dum3_ip,  & ! h.hh duration PlmH
+                                         EruptGasMass(i),            & ! Total Mass in kt
+                                         EruptGasSpeciesID(i),       & ! Species ID
+                                         EruptGasSrcStruc(i),        & ! Source structure code
+                                         EruptGasVentLon(i),EruptGasVentLat(i)  ! point coordinates
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)"Gas Point source not yet implemented"
+          endif;enddo
+          stop 1
+
+        elseif(EruptGasSrcStruc(i).eq.5)then
+          ! Read the lon/lat of the vertical line source
+          read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, & ! yyyy mm dd
+                                         dum1_ip, dum2_ip, dum3_ip,  & ! h.hh duration PlmH
+                                         EruptGasMass(i),            & ! Total Mass in kt
+                                         EruptGasSpeciesID(i),       & ! Species ID
+                                         EruptGasSrcStruc(i),        & ! Source structure code
+                                         EruptGasVentLon(i),EruptGasVentLat(i)  ! vent coordinates
+
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)"Gas Line source not yet implemented"
+          endif;enddo
+          stop 1
+        elseif(EruptGasSrcStruc(i).eq.6)then
+          ! Read the lon/lat and k of the vertical Suzuki profile
+          read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, & ! yyyy mm dd
+                                         dum1_ip, dum2_ip, dum3_ip,  & ! h.hh duration PlmH
+                                         EruptGasMass(i),            & ! Total Mass in kt
+                                         EruptGasSpeciesID(i),       & ! Species ID
+                                         EruptGasSrcStruc(i),        & ! Source structure code
+                                         EruptGasVentLon(i),EruptGasVentLat(i),&  ! vent coordinates
+                                         EruptGasSuzK(i)               ! Suzuki k
+
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)"Gas Suzuki source not yet implemented"
+          endif;enddo
+          stop 1
+        elseif(EruptGasSrcStruc(i).eq.7)then
+          ! Read the lon/lat dz nz of the profile of Mass fractions
+          read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, & ! yyyy mm dd
+                                         dum1_ip, dum2_ip, dum3_ip,  & ! h.hh duration PlmH
+                                         EruptGasMass(i),            & ! Total Mass in kt
+                                         EruptGasSpeciesID(i),       & ! Species ID
+                                         EruptGasSrcStruc(i),        & ! Source structure code
+                                         EruptGasVentLon(i),EruptGasVentLat(i)  ! vent coordinates
+                                         
+          do io=1,2;if(VB(io).le.verbosity_error)then
+            write(errlog(io),*)"Gas Profile source not yet implemented"
+          endif;enddo
+          stop 1
+        endif
+          ! Read the next line 
+        read(10,'(a120)')linebuffer120
+
+        if(EruptGasSrcStruc(i).eq.1.or.& ! point on surface (vent)
+           EruptGasSrcStruc(i).eq.2.or.& ! line on surface (fissure)
+           EruptGasSrcStruc(i).eq.4.or.& ! point source
+           EruptGasSrcStruc(i).eq.5.or.& ! vertical line source
+           EruptGasSrcStruc(i).eq.6.or.& ! vertical Suzuki source
+           EruptGasSrcStruc(i).eq.7)then ! vertical profile source
           if(EruptGasVentLon(i).lt.-360.0_ip)then
             do io=1,2;if(VB(io).le.verbosity_error)then
               write(errlog(io),*)"ERROR: Vent longitude is less than -360.0"
@@ -320,31 +438,11 @@
             write(outlog(io),*)EruptGasVentLon(i),lonLL,de,EruptGasVentLon_i(i)
             write(outlog(io),*)EruptGasVentLat(i),latLL,dn,EruptGasVentLat_j(i)
           endif;enddo
-          !stop 1
-
-        elseif(EruptGasSrcStruc(i).eq.3)then
-          ! Read the start lon/lat and end lon/lat of fissure
-          do io=1,2;if(VB(io).le.verbosity_error)then
-            write(errlog(io),*)"Gas Fissure source not yet implemented"
-          endif;enddo
-          stop 1
-        elseif(EruptGasSrcStruc(i).eq.4)then
-          ! Read the lon/lat and height of line
-          do io=1,2;if(VB(io).le.verbosity_error)then
-            write(errlog(io),*)"Gas Line source not yet implemented"
-          endif;enddo
-          stop 1
-        elseif(EruptGasSrcStruc(i).eq.5)then
-          ! Read the profile of Mass fractions
-          do io=1,2;if(VB(io).le.verbosity_error)then
-            write(errlog(io),*)"Gas Profile source not yet implemented"
-          endif;enddo
-          stop 1
         endif
-          ! Read the next line 
-        read(10,'(a120)')linebuffer120
-
+        ! Convert erupted mass (in kt) to mass rate (kg/hr)
+        EruptGasMassRate(i) = EruptGasMass(i)*1.0e6/dum2_ip
       enddo
+
       ! Initialize some eruption values
       e_Duration  = 0.0_ip
       e_Volume    = 0.0_ip
@@ -1080,7 +1178,7 @@
             do j = 1,nymax
               if(SrcGasSurf_Mask(i,j).gt.0)then
                 Fv = EruptGasMassRate(1)/real(SrcGasSurf_MaskCount,kind=ip)  ! Divide by number o cells
-                Fv = Fv * 1000.0_ip /24.0_ip          ! Convert to kg/hr for this cell
+                !Fv = Fv * 1000.0_ip /24.0_ip          ! Convert to kg/hr for this cell
               else
                 Fv = 0.0_ip
               endif
@@ -1091,8 +1189,7 @@
         elseif(EruptGasSrcStruc(ie).eq.2)then
           ! Point source
             ! Mass contribution in kg/hr
-          SourceNodeFlux_Area(EruptGasVentLon_i(ie),EruptGasVentLat_j(ie),idx) = &
-            EruptGasMassRate(ie) * 1000.0_ip/24.0_ip
+          SourceNodeFlux_Area(EruptGasVentLon_i(ie),EruptGasVentLat_j(ie),idx) =  EruptGasMassRate(ie)
         elseif(EruptGasSrcStruc(ie).eq.3)then
           ! Fissure source
         elseif(EruptGasSrcStruc(ie).eq.4)then

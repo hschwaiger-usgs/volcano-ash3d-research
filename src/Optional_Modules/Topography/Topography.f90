@@ -159,7 +159,7 @@
 
       ! These are on the computational grid
       real(kind=sp),dimension(:,:)  ,allocatable :: topo_comp ! Used if useTopo=.true.
-      integer      ,dimension(:,:)  ,allocatable :: topo_indx ! kindex of topo
+      !integer      ,dimension(:,:)  ,allocatable :: topo_indx ! kindex of topo
       integer,private :: lon_shift_flag
 
       real(kind=ip) :: minlon_Topo_comp,maxlon_Topo_comp
@@ -385,7 +385,7 @@
       endif;enddo
 
       allocate(topo_comp(nx,ny));       topo_comp = 0.0_sp
-      allocate(topo_indx(nx,ny));       topo_indx = 0
+      !allocate(topo_indx(nx,ny));       topo_indx = 0
 
       ! Set the start indecies
       indx_User2d_static_XY_Topo = nvar_User2d_static_XY
@@ -462,7 +462,7 @@
       subroutine Deallocate_Topo
 
       deallocate(topo_comp)
-      deallocate(topo_indx)
+      !deallocate(topo_indx)
 
       end subroutine Deallocate_Topo
 
@@ -484,7 +484,8 @@
       subroutine Get_Topo
 
       use mesh,          only : &
-         IsLatLon,lon_cc_pd,lat_cc_pd,de,dn,nxmax,nymax
+         IsLatLon,lon_cc_pd,lat_cc_pd,de,dn,nxmax,nymax,&
+         ZScaling_ID,j_cc_pd,Ztop,Zsurf
 
       use MetReader,       only : &
          nx_submet,ny_submet,x_submet_sp,y_submet_sp
@@ -559,6 +560,31 @@
       call Interp_Topo
 
       call Smooth_Topo
+
+      ! Now that we have the topography prepared on the computational grid, set the jacobian
+      if(ZScaling_ID.eq.0)then
+        ! No shifting or scaling so Jacobian remains 1 and dimensionless
+        j_cc_pd(-1:nxmax+2,-1:nymax+2) = 1.0_ip
+      elseif(ZScaling_ID.eq.1)then
+        ! Shifted grid: Jacobian remains 1 and dimensionless
+        j_cc_pd(-1:nxmax+2,-1:nymax+2) = 1.0_ip
+      elseif(ZScaling_ID.eq.2)then
+        Zsurf(1:nxmax,1:nymax)   = topo_comp(1:nxmax,1:nymax)
+        ! Scaled (sigma-altitude) Jacobian = Ztop-Zsurf (in km)
+        j_cc_pd(1:nxmax,1:nymax) = Ztop - Zsurf(1:nxmax,1:nymax)
+        j_cc_pd(1:nxmax,-1)      = j_cc_pd(1:nxmax,1)
+        j_cc_pd(1:nxmax, 0)      = j_cc_pd(1:nxmax,1)
+        j_cc_pd(1:nxmax,nymax+1) = j_cc_pd(1:nxmax,nymax)
+        j_cc_pd(1:nxmax,nymax+2) = j_cc_pd(1:nxmax,nymax)
+        j_cc_pd(-1,1:nymax)      = j_cc_pd(1,1:nymax)
+        j_cc_pd( 0,1:nymax)      = j_cc_pd(1,1:nymax)
+        j_cc_pd(nxmax+1,1:nymax) = j_cc_pd(nxmax,1:nymax)
+        j_cc_pd(nxmax+2,1:nymax) = j_cc_pd(nxmax,1:nymax)
+        j_cc_pd(-1:0           ,-1:0)           = j_cc_pd(1,1)
+        j_cc_pd(nxmax+1:nxmax+2,-1:0)           = j_cc_pd(nxmax,1)
+        j_cc_pd(-1:0           ,nymax+1:nymax+2)= j_cc_pd(1,nymax)
+        j_cc_pd(nxmax+1:nxmax+2,nymax+1:nymax+2)= j_cc_pd(nxmax,nymax)
+      endif
 
       end subroutine Get_Topo
 
@@ -2150,14 +2176,14 @@
                                 a4*topo_subgrid(ilon  ,ilat+1),kind=sp)
           topo_comp(i,j) = topo_comp(i,j) / 1000.0_sp ! convert to km
 
-          topo_indx(i,j) = 0
-          do k=1,nzmax+1
-            if (z_cc_pd(k).le.topo_comp(i,j) .and. &
-                z_cc_pd(k+1).gt.topo_comp(i,j))then
-              topo_indx(i,j) = k
-              exit
-            endif
-          enddo
+          !topo_indx(i,j) = 0
+          !do k=1,nzmax+1
+          !  if (z_cc_pd(k).le.topo_comp(i,j) .and. &
+          !      z_cc_pd(k+1).gt.topo_comp(i,j))then
+          !    topo_indx(i,j) = k
+          !    exit
+          !  endif
+          !enddo
         enddo
       enddo
       deallocate(loncc_topo_subgrid,latcc_topo_subgrid,topo_subgrid)
@@ -2354,14 +2380,14 @@
             if (topo_smooth_comp(i,j).lt.0.0_sp) topo_smooth_comp(i,j) = 0.0_sp
             ! Reset the topo index
             ! This is only needed if we are letting the grid intersect topography
-            topo_indx(i,j) = 0
-            do k=1,nzmax+1
-              if (z_cc_pd(k).le.topo_smooth_comp(i,j) .and. &
-                  z_cc_pd(k+1).gt.topo_smooth_comp(i,j))then
-                topo_indx(i,j) = k
-                exit
-              endif
-            enddo
+            !topo_indx(i,j) = 0
+            !do k=1,nzmax+1
+            !  if (z_cc_pd(k).le.topo_smooth_comp(i,j) .and. &
+            !      z_cc_pd(k+1).gt.topo_smooth_comp(i,j))then
+            !    topo_indx(i,j) = k
+            !    exit
+            !  endif
+            !enddo
           enddo
         enddo
       enddo
