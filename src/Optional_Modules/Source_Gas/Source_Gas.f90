@@ -48,6 +48,7 @@
 
       integer,dimension(:),allocatable              :: EruptGasVentLon_i
       integer,dimension(:),allocatable              :: EruptGasVentLat_j
+      integer,dimension(:),allocatable              :: EruptGasVentElv_k
 
       integer      ,dimension(:,:)  ,allocatable :: SrcGasSurf_Mask
       real(kind=op),dimension(:,:,:),allocatable :: SrcGas_SurfConc
@@ -137,10 +138,10 @@
          infile
 
       use mesh,          only : &
-         nxmax,nymax,nsmax,de,dn,lonLL,latLL
+         nxmax,nymax,nzmax,nsmax,de,dn,lonLL,latLL,z_cc_pd,dz_vec_pd
 
       use Source,        only : &
-         neruptions,SourceType,e_Volume,e_Duration
+         neruptions,SourceType,e_Volume,e_Duration,e_PlumeHeight
 
       implicit none
 
@@ -150,11 +151,15 @@
       integer :: ios !,ioerr
       character(len=20) :: mod_name
       integer :: substr_pos
-      integer         :: i
+      integer         :: i,k
       integer         :: dum1_int,dum2_int,dum3_int
       real(kind=ip)   :: dum1_ip,dum2_ip,dum3_ip
       character(len=2) :: dumstr1,dumstr2
       integer :: ireac
+
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*)"     Entered Subroutine input_data_Source_Gas"
+      endif;enddo
 
       ! Set up the species names by index
       !   Note: SpeciesID =>   # Primary gas emmission species as listed in Encyc. of Volc. p805
@@ -226,6 +231,7 @@
       allocate(EruptGasVentLat(neruptions))
       allocate(EruptGasVentLon_i(neruptions))
       allocate(EruptGasVentLat_j(neruptions))
+      allocate(EruptGasVentElv_k(neruptions))
       allocate(EruptGasFisLon(neruptions))
       allocate(EruptGasFisLat(neruptions))
       allocate(EruptGasSuzK(neruptions))
@@ -275,7 +281,8 @@
       !                    4 = point source                    GasSrcStruc=4 (10)    pt_lon pt_lat
       !                    5 = vertical line source            GasSrcStruc=5 (10-11) pt_lon pt_lat (line from surf to PlmH)
       !                    6 = vertical Suzuki source          GasSrcStruc=6 (10)    pt_lon pt_lat k
-      !                    7 = vertical profile source         GasSrcStruc=7 (10-11) pt_lon pt_lat dz nz    + additional line with fractions
+      !                    7 = vertical profile source         GasSrcStruc=7 (10-11) pt_lon pt_lat dz nz 
+      !                                                               + additional line with fractions
 
       setSrcGasSurf_Perim = .false.
       do i=1,neruptions
@@ -427,20 +434,15 @@
             stop 1
           endif
           ! Need to do some checking here on input coordinates, mapping to
-          ! compuataional grid, etc.
+          ! compuataional grid, etc.  We do not yet have the k grid
           EruptGasVentLon_i(i) = int((EruptGasVentLon(i)-lonLL)/de) + 1
           EruptGasVentLat_j(i) = int((EruptGasVentLat(i)-latLL)/dn) + 1
-          !do io=1,2;if(VB(io).le.verbosity_info)then
-          !  write(outlog(io),*)EruptGasVentLon(i),lonLL,de,EruptGasVentLon_i(i)
-          !  write(outlog(io),*)EruptGasVentLat(i),latLL,dn,EruptGasVentLat_j(i)
-          !endif;enddo
         endif
         ! Convert erupted mass (in kt) to mass rate (kg/hr)
         EruptGasMassRate(i) = EruptGasMass(i)*1.0e6/e_Duration(i)
       enddo
 
       ! Initialize some eruption values
-      !e_Duration  = 0.0_ip
       e_Volume    = 0.0_ip
 
       ! Now read to the end of the input file and read the Optional Modudle
@@ -804,6 +806,10 @@
       integer :: gasID
       real(kind=op) :: dum_op
 
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*)"     Entered Subroutine Prep_output_Source_Gas"
+      endif;enddo
+
       SrcGas_SurfConc(1:ngas_max,1:nxmax,1:nymax)    = -9999.0_op
       SrcGas_VertColDens(1:ngas_max,1:nxmax,1:nymax) = -9999.0_op
 
@@ -893,6 +899,10 @@
 
       implicit none
 
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*)"     Entered Subroutine Deallocate_Source_Gas"
+      endif;enddo
+
       if(allocated(SrcGasSurf_Mask)) deallocate(SrcGasSurf_Mask)
 
 #ifdef USEPOINTERS
@@ -900,7 +910,6 @@
 #else
       if(allocated(SourceNodeFlux_Area))   deallocate(SourceNodeFlux_Area)
 #endif
-
 
       end subroutine Deallocate_Source_Gas
 
@@ -942,6 +951,10 @@
       real(kind=dp) :: lat_in,lon_in,xout,yout
 
       integer :: i,j
+
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*)"     Entered Subroutine Read_Perimeter_Gas"
+      endif;enddo
 
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)"Opening ",SrcGasSurf_PerimInfile
@@ -1037,11 +1050,28 @@
       !integer :: ivar
       !integer :: i,j,k
 
-      !logical,save :: first_time = .true.
+      logical,save :: first_time = .true.
+
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*)"     Entered Subroutine Set_Gas_Meso"
+      endif;enddo
 
 !      if(Load_MesoSteps)then
 !        if(first_time)then
-!          ! Need to fill _last_step_sp
+
+!          ! Need to do some checking here on input coordinates, mapping to
+!          ! compuataional grid, etc.
+!          EruptGasVentLon_i(i) = int((EruptGasVentLon(i)-lonLL)/de) + 1
+!          EruptGasVentLat_j(i) = int((EruptGasVentLat(i)-latLL)/dn) + 1
+!          EruptGasVentElv_k(i) = 1
+!          do k=i,nzmax
+!            if(e_PlumeHeight(i).ge.z_cc_pd(k)-0.5_ip*dz_vec_pd(i).and.&
+!               e_PlumeHeight(i).lt.z_cc_pd(k)+0.5_ip*dz_vec_pd(i))then
+!              EruptGasVentElv_k(i) = k
+!            endif
+!          enddo
+
+          ! Need to fill _last_step_sp
 !          !  First fill next step so that outside this 'first_time' loop, the
 !          !  'next' can be copied to the 'last'
 !
@@ -1093,25 +1123,114 @@
 
 !******************************************************************************
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine CheckEruptivePulses_Gas
+
+      use mesh,          only : &
+         nzmax,dz_vec_pd,z_cc_pd
+
+      use time_data,     only : &
+         time, dt
+
+      use Source,        only : &
+         neruptions,SourceType,e_Duration,dt_pulse_frac,ieruption,jeruption,&
+         Source_in_dt,e_plumeheight,e_StartTime,e_EndTime
+
+      real(kind=dp)    :: tstart, tend      ! start and end times of this time step
+      logical          :: Pulse_contributes
+      integer          :: i,k
+      logical, save    :: FirstTime = .true.
+
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*)"     Entered Subroutine CheckEruptivePulses"
+      endif;enddo
+
+      tstart = time
+      tend   = time+dt
+
+      Source_in_dt     = .false.
+      dt_pulse_frac(:) = 0.0_dp
+
+      do i=ieruption,neruptions
+        Pulse_contributes = .false.
+
+        ! If this is the first time, set the k index if needed
+        if(FirstTime)then
+          EruptGasVentElv_k(i) = 1
+          do k=i,nzmax
+            if(e_PlumeHeight(i).ge.z_cc_pd(k)-0.5_ip*dz_vec_pd(i).and.&
+               e_PlumeHeight(i).lt.z_cc_pd(k)+0.5_ip*dz_vec_pd(i))then
+              EruptGasVentElv_k(i) = k
+            endif
+          enddo
+        endif
+
+        if((tstart.ge.e_StartTime(i)).and. & ! beginning of time step at or after pulse start
+           (tstart.lt.e_EndTime(i)))then     ! beginning of time step is before same pulse ends
+          ! This catches all pulses that touch the start of dt
+          Pulse_contributes = .true.
+        elseif((tend.gt.e_StartTime(i)).and. & ! end of time step at or after pulse start
+               (tend.le.e_EndTime(i)))then     ! end of time step is before same pulse ends
+          ! This catches all pulses that touch the end of dt
+          Pulse_contributes = .true.
+          jeruption = i
+          ! if we have found the eruptive pulse that touches the end of dt, then exit the
+          ! do loop
+          exit
+        elseif(tstart.lt.e_StartTime(i).and.  &
+              (tend.gt.e_EndTime(i)))then
+          ! This catches all pulses that are wholely within dt
+          ! If we are here, either the dt selected is huge (e.g. no winds) or the
+          ! eruption duration is tiny.
+          ! Issue a warning, but continue.
+          do io=1,2;if(VB(io).le.verbosity_info)then
+            write(outlog(io),1)i
+          endif;enddo
+          Pulse_contributes = .true.
+        endif
+        if(Pulse_contributes)then
+          ! If any pulse contributes, update the global flag
+          Source_in_dt = .true.
+          ! calculate the sliver of time this pulse is active within dt
+          dt_pulse_frac(i) = (min(tend,e_EndTime(i)) - &
+                              max(tstart,e_StartTime(i)))/dt
+        endif
+      enddo
+      FirstTime = .false.
+
+!     Format statements
+ 1     format(4x,'Warning.  Eruption ',i3,' is shorter than time steps dt.')
+
+      end subroutine CheckEruptivePulses_Gas
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+
       subroutine Set_Gas_Flux
 
       use Source,        only : &
-         SourceNodeFlux_Area
+         SourceNodeFlux,SourceNodeFlux_Area
 
       use mesh,          only : &
-        nxmax,nymax
+        nxmax,nymax,nzmax
 
       use Source,        only : &
-         neruptions
+         neruptions,ieruption,jeruption,dt_pulse_frac
 
       implicit none
 
       integer :: i,j,ie,idx
       real(kind=ip) :: Fv
 
-      SourceNodeFlux_Area = 0.0_ip
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*)"     Entered Subroutine Set_Gas_Flux"
+      endif;enddo
 
-      do ie=1,neruptions
+      SourceNodeFlux_Area(1:nxmax,1:nymax,1:ngas_max)                        = 0.0_ip
+      SourceNodeFlux(0:nzmax+1,iconcen_gas_start:iconcen_gas_start+ngas_max) = 0.0_ip
+      do ie=ieruption,jeruption
         ! Get the chem species for this eruptive pulse
         select case (EruptGasSpeciesID(ie))
         case(1)          !                          1 = H2O        water vapor
@@ -1168,13 +1287,23 @@
           stop 1
         end select
 
-        if(EruptGasSrcStruc(ie).eq.1)then
-          ! Distributed region
+        if(EruptGasSrcStruc(ie).eq.0)then
+          ! source-term file
+        elseif(EruptGasSrcStruc(ie).eq.1)then
+          ! Point on source (vent)
+          SourceNodeFlux(1,idx) = EruptGasMassRate(ie) * real(dt_pulse_frac(ie),kind=ip)
+          ! HFS: might make sense to have the area variable and set the cells
+          !      for each vent
+        elseif(EruptGasSrcStruc(ie).eq.2)then
+          ! Line on source (fissure)
+        elseif(EruptGasSrcStruc(ie).eq.3)then
+          ! Area on source (region)
           do i = 1,nxmax
             do j = 1,nymax
               if(SrcGasSurf_Mask(i,j).gt.0)then
-                Fv = EruptGasMassRate(1)/real(SrcGasSurf_MaskCount,kind=ip)  ! Divide by number o cells
-                !Fv = Fv * 1000.0_ip /24.0_ip          ! Convert to kg/hr for this cell
+                ! Find the flux (kg/hr) for each cell of the area by dividing
+                ! the total mass flux by the number of cells in area
+                Fv = EruptGasMassRate(1)/real(SrcGasSurf_MaskCount,kind=ip)
               else
                 Fv = 0.0_ip
               endif
@@ -1182,16 +1311,26 @@
               SourceNodeFlux_Area(i,j,idx)= Fv
             enddo
           enddo
-        elseif(EruptGasSrcStruc(ie).eq.2)then
+        elseif(EruptGasSrcStruc(ie).eq.4)then
           ! Point source
             ! Mass contribution in kg/hr
-          SourceNodeFlux_Area(EruptGasVentLon_i(ie),EruptGasVentLat_j(ie),idx) =  EruptGasMassRate(ie)
-        elseif(EruptGasSrcStruc(ie).eq.3)then
-          ! Fissure source
-        elseif(EruptGasSrcStruc(ie).eq.4)then
-          ! Verftical line source
+          SourceNodeFlux(EruptGasVentElv_k(ie),idx) = SourceNodeFlux(EruptGasVentElv_k(ie),idx) + &
+                                                       EruptGasMassRate(ie) * &
+                                                       real(dt_pulse_frac(ie),kind=ip)
+
+          write(*,*)"Setting SourceNodeFlux"
+          write(*,*)ie,idx,EruptGasVentElv_k(ie),&
+                    SourceNodeFlux(EruptGasVentElv_k(ie),idx),&
+                    EruptGasMassRate(ie),&
+                    dt_pulse_frac(ie)
+
+          !SourceNodeFlux_Area(EruptGasVentLon_i(ie),EruptGasVentLat_j(ie),idx) =  EruptGasMassRate(ie)
         elseif(EruptGasSrcStruc(ie).eq.5)then
-          ! Vertical profile source
+          ! vertical line source
+        elseif(EruptGasSrcStruc(ie).eq.6)then
+          ! vertical Suzuki source
+        elseif(EruptGasSrcStruc(ie).eq.7)then
+          ! vertical profile source
         endif
       enddo !neruptions
 
@@ -1208,7 +1347,7 @@
          concen_pd
 
       use Source,        only : &
-         SourceNodeFlux_Area
+         SourceNodeFlux,SourceNodeFlux_Area,ieruption
 
       !use Topography
 
@@ -1219,15 +1358,34 @@
 
       integer :: i,j,k
 
-      do i = 1,nxmax
-        do j = 1,nymax
-          !k = topo_indx(i,j)
-          k = 1
-          concen_pd(i,j,k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0) =                     &
-          concen_pd(i,j,k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0)  &
-                   + dt*SourceNodeFlux_Area(i,j,1:ngas_max)/kappa_pd(i,j,1)
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*)"     Entered Subroutine Set_concen_Gas"
+      endif;enddo
+
+      if(EruptGasSrcStruc(1).eq.3)then
+        ! surface area sources are a bit special
+        do i = 1,nxmax
+          do j = 1,nymax
+            !k = topo_indx(i,j)
+            k = 1
+            concen_pd(i,j,k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0) =                     &
+            concen_pd(i,j,k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0)  &
+                     + dt*SourceNodeFlux_Area(i,j,1:ngas_max)/kappa_pd(i,j,1)
+          enddo
         enddo
-      enddo
+      elseif(EruptGasSrcStruc(ieruption).eq.4)then
+        i = EruptGasVentLon_i(ieruption)
+        j = EruptGasVentLat_j(ieruption)
+        k = EruptGasVentElv_k(ieruption)
+        concen_pd(i,j,k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0) =                     &
+        concen_pd(i,j,k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0)  &
+                 + dt*SourceNodeFlux(k,iconcen_gas_start:iconcen_gas_start+ngas_max-1)/kappa_pd(i,j,k)
+        write(*,*)"Inserting gas source: ",k,&
+                  SourceNodeFlux(k,iconcen_gas_start:iconcen_gas_start+ngas_max-1)
+      else
+        write(*,*)"Need to code up other source structures"
+        stop 55
+      endif
 
       end subroutine Set_concen_Gas
 
@@ -1253,6 +1411,10 @@
       real(kind=ip) :: cofac
       real(kind=ip) :: scrub
       real(kind=ip) :: del_molarmass
+
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*)"     Entered Subroutine Gas_Chem_Convert"
+      endif;enddo
 
       ! Loop through all the reactions and integrate.
       ! Note: The SO2 to SO4 conversion is slow and will not be the limiting time-step criterion.
@@ -1346,6 +1508,10 @@
         integer :: beli
         logical :: vert_test
         logical :: horz_test
+
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*)"     Entered function IsIn"
+      endif;enddo
 
         tol = 0.499_ip
         Tol_Dist = 0.0_ip !tol*AVG_SPACE
@@ -1451,6 +1617,10 @@
 
         logical IsOdd
         integer :: n
+
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*)"     Entered function IsOdd"
+      endif;enddo
 
         if(mod(n,2).eq.1)then
           IsOdd = .true.

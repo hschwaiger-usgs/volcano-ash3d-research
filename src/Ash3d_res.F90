@@ -366,7 +366,10 @@
       if(SourceType.eq.'gas')then
         ! We will also need to allocate some more arrays
         call Allocate_Source_Gas
-        if(EruptGasSrcStruc(1).eq.1)call Read_Perimeter_Gas
+        if(EruptGasSrcStruc(1).eq.3)then
+          ! Source structure code 3 is for a distributed surface region source
+          call Read_Perimeter_Gas
+        endif
       endif
 #endif
 
@@ -614,7 +617,9 @@
         do io=1,2;if(VB(io).le.verbosity_debug1)then
           write(outlog(io),*)"Calling Set_Gas_Meso."
         endif;enddo
-        if(USE_GAS)          call Set_Gas_Meso(Load_MesoSteps,Interval_Frac)
+        if(USE_GAS)then
+          !call Set_Gas_Meso(Load_MesoSteps,Interval_Frac)
+        endif
 #endif
 #ifdef WETDEPO
         do io=1,2;if(VB(io).le.verbosity_debug1)then
@@ -626,6 +631,15 @@
 
           ! Determine if (and which) eruptive pulses are active in the current dt
         call CheckEruptivePulses
+
+#ifdef SRC_GAS
+        do io=1,2;if(VB(io).le.verbosity_debug1)then
+          write(outlog(io),*)"Calling Set_Gas_Meso."
+        endif;enddo
+        if(USE_GAS)then
+          call CheckEruptivePulses_Gas
+        endif
+#endif
 
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
@@ -646,14 +660,16 @@
 #endif
 #ifdef SRC_GAS
         if(USE_GAS)then
-          do io=1,2;if(VB(io).le.verbosity_debug1)then
-            write(outlog(io),*)"Calling Set_Gas_Flux."
-          endif;enddo
-          call Set_Gas_Flux
-          if(sum(SourceNodeFlux_Area).gt.EPS_TINY)then
-            Source_in_dt = .true.
-          else
-            Source_in_dt = .false.
+          !do io=1,2;if(VB(io).le.verbosity_debug1)then
+          !  write(outlog(io),*)"Calling Set_Gas_Flux."
+          !endif;enddo
+          !call Set_Gas_Flux
+          if(EruptGasSrcStruc(1).eq.3)then
+            if(sum(SourceNodeFlux_Area).gt.EPS_TINY)then
+              Source_in_dt = .true.
+            else
+              Source_in_dt = .false.
+            endif
           endif
         endif
 #endif
@@ -727,14 +743,15 @@
                 write(outlog(io),*)"Calling Set_concen_Resusp."
               endif;enddo
               call Set_concen_Resusp
-            ! Keep track of the accumulated source inserted for mass conservation error-checking
-            SourceCumulativeVol = SourceCumulativeVol + SourceVolInc_Resusp(dt)
+              ! Keep track of the accumulated source inserted for mass conservation error-checking
+              SourceCumulativeVol = SourceCumulativeVol + SourceVolInc_Resusp(dt)
 #endif
             elseif (SourceType.eq.'gas') then
 #ifdef SRC_GAS
               do io=1,2;if(VB(io).le.verbosity_debug1)then
-                write(outlog(io),*)"Calling Set_concen_Gas."
+                write(outlog(io),*)"Calling Set_Gas_Flux and Set_concen_Gas."
               endif;enddo
+              call Set_Gas_Flux
               call Set_concen_Gas
 #endif
 !------------------------------------------------------------------------------
@@ -789,12 +806,12 @@
 !         Insert calls to optional deposition routines here
 !
 #ifdef SRC_GAS
-        if(USE_GAS)then
-          do io=1,2;if(VB(io).le.verbosity_debug1)then
-            write(outlog(io),*)"Calling Gas_Chem_Convert."
-          endif;enddo
-          call Gas_Chem_Convert
-        endif
+        !if(USE_GAS)then
+        !  do io=1,2;if(VB(io).le.verbosity_debug1)then
+        !    write(outlog(io),*)"Calling Gas_Chem_Convert."
+        !  endif;enddo
+        !  call Gas_Chem_Convert
+        !endif
 #endif
 
 #ifdef WETDEPO
