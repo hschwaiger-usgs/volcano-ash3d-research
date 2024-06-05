@@ -936,6 +936,15 @@
 !------------------------------------------------------------------------------
             endif
             call TimeStepTotals(itime)
+
+#ifdef SRC_GAS
+          if(SourceType.eq.'gas')then
+            do io=1,2;if(VB(io).le.verbosity_debug1)then
+              write(outlog(io),*)"Calling TimeStepTotals_Source_Gas"
+            endif;enddo
+            call TimeStepTotals_Source_Gas
+          endif
+#endif
           endif
 
             ! Only consider reducing GS bins at logsteps

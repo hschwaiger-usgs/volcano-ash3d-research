@@ -143,6 +143,9 @@
       use Source,        only : &
          neruptions,SourceType,e_Volume,e_Duration,e_PlumeHeight
 
+      use Tephra,        only : &
+         MagmaDensity
+
       implicit none
 
       character(len=80)  :: linebuffer080
@@ -264,7 +267,6 @@
         read(linebuffer120,*)testkey
       enddo
 
-      write(*,*)linebuffer120
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)"Start reading gas source."
         write(outlog(io),*)neruptions," eruptions"
@@ -440,6 +442,10 @@
         endif
         ! Convert erupted mass (in kt) to mass rate (kg/hr)
         EruptGasMassRate(i) = EruptGasMass(i)*1.0e6/e_Duration(i)
+
+        ! And 'convert' mass to a sort of DRE volume so Ash3d will track mass
+        e_Volume(i) = EruptGasMass(i)*1.0e-3/MagmaDensity
+
       enddo
 
       ! Initialize some eruption values
@@ -810,8 +816,8 @@
         write(outlog(io),*)"     Entered Subroutine Prep_output_Source_Gas"
       endif;enddo
 
-      SrcGas_SurfConc(1:ngas_max,1:nxmax,1:nymax)    = -9999.0_op
-      SrcGas_VertColDens(1:ngas_max,1:nxmax,1:nymax) = -9999.0_op
+      SrcGas_SurfConc(1:ngas_max,1:nxmax,1:nymax)    = 0.0_op
+      SrcGas_VertColDens(1:ngas_max,1:nxmax,1:nymax) = 0.0_op
 
       do ig=1,ngas_max
         do i=1,nxmax
@@ -823,7 +829,7 @@
       ! Get surface concentration
       dum_op = real(concen_pd(i,j,1,indx,ts1),kind=op) ! in km/km^3
       if(GS_GasSpecies_IsAerosol(gasID))then
-        ! If species is an aerosol, then write concentration in kg/km^3
+        ! If species is an aerosol, then write concentration in kg/km^3 (also ug/m^3)
         if(dum_op.gt.Surf_Conc_tresh)    SrcGas_SurfConc(ig,i,j) = dum_op ! in kg/km^3
       else
         ! If a gas (not an aerosol) then convert surface concentration to ppm
@@ -1228,8 +1234,8 @@
         write(outlog(io),*)"     Entered Subroutine Set_Gas_Flux"
       endif;enddo
 
-      SourceNodeFlux_Area(1:nxmax,1:nymax,1:ngas_max)                        = 0.0_ip
-      SourceNodeFlux(0:nzmax+1,iconcen_gas_start:iconcen_gas_start+ngas_max) = 0.0_ip
+      SourceNodeFlux_Area(1:nxmax,1:nymax,1:ngas_max)                          = 0.0_ip
+      SourceNodeFlux(0:nzmax+1,iconcen_gas_start+1:iconcen_gas_start+ngas_max) = 0.0_ip
       do ie=ieruption,jeruption
         ! Get the chem species for this eruptive pulse
         select case (EruptGasSpeciesID(ie))
@@ -1318,11 +1324,9 @@
                                                        EruptGasMassRate(ie) * &
                                                        real(dt_pulse_frac(ie),kind=ip)
 
-          write(*,*)"Setting SourceNodeFlux"
-          write(*,*)ie,idx,EruptGasVentElv_k(ie),&
-                    SourceNodeFlux(EruptGasVentElv_k(ie),idx),&
-                    EruptGasMassRate(ie),&
-                    dt_pulse_frac(ie)
+!          write(*,*)"Setting SourceNodeFlux"
+!          write(*,*)ie,idx,EruptGasVentElv_k(ie),&
+!                    SourceNodeFlux(EruptGasVentElv_k(ie),idx)
 
           !SourceNodeFlux_Area(EruptGasVentLon_i(ie),EruptGasVentLat_j(ie),idx) =  EruptGasMassRate(ie)
         elseif(EruptGasSrcStruc(ie).eq.5)then
@@ -1377,11 +1381,13 @@
         i = EruptGasVentLon_i(ieruption)
         j = EruptGasVentLat_j(ieruption)
         k = EruptGasVentElv_k(ieruption)
-        concen_pd(i,j,k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0) =                     &
-        concen_pd(i,j,k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0)  &
-                 + dt*SourceNodeFlux(k,iconcen_gas_start:iconcen_gas_start+ngas_max-1)/kappa_pd(i,j,k)
-        write(*,*)"Inserting gas source: ",k,&
-                  SourceNodeFlux(k,iconcen_gas_start:iconcen_gas_start+ngas_max-1)
+        concen_pd(i,j,   k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0) =                     &
+        concen_pd(i,j,   k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0)  + dt* &
+          SourceNodeFlux(k,iconcen_gas_start+1:iconcen_gas_start+ngas_max)/kappa_pd(i,j,k)
+!        write(*,*)"Inserting gas source: "
+!        write(*,*)ieruption,iconcen_gas_start,EruptGasVentElv_k(ieruption),&
+!                    SourceNodeFlux(EruptGasVentElv_k(ieruption),iconcen_gas_start+1)
+
       else
         write(*,*)"Need to code up other source structures"
         stop 55
@@ -1629,6 +1635,36 @@
         endif
         RETURN
       end function IsOdd
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine TimeStepTotals_Source_Gas
+
+      use precis_param
+
+      use io_units
+
+      use solution,      only : &
+         mass_aloft
+
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*)"     Entered Subroutine TimeStepTotals_Source_Gas"
+      endif;enddo
+
+!      do io=1,2;if(VB(io).le.verbosity_info)then
+!        write(outlog(io),*) '  Gas mass (kt):  ',&
+!          real(mass_aloft(iconcen_gas_start+1:iconcen_gas_start+ngas_max)*1.0e-6,kind=4)
+!      endif;enddo
+
+      return
+
+      end subroutine TimeStepTotals_Source_Gas
+
+
+      ! Copied from Tephra
+      !subroutine Set_Vf_Meso_Source_Gas(Load_MesoSteps)
+
+      !end subroutine Set_Vf_Meso_Source_Gas
 
 
       end module Source_Gas
