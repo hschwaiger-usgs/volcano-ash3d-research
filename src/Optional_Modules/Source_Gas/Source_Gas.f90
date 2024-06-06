@@ -1651,10 +1651,10 @@
         write(outlog(io),*)"     Entered Subroutine TimeStepTotals_Source_Gas"
       endif;enddo
 
-!      do io=1,2;if(VB(io).le.verbosity_info)then
-!        write(outlog(io),*) '  Gas mass (kt):  ',&
-!          real(mass_aloft(iconcen_gas_start+1:iconcen_gas_start+ngas_max)*1.0e-6,kind=4)
-!      endif;enddo
+      do io=1,2;if(VB(io).le.verbosity_debug1)then
+        write(outlog(io),*) '  Gas mass (kt):  ',&
+          real(mass_aloft(iconcen_gas_start+1:iconcen_gas_start+ngas_max)*1.0e-6,kind=4)
+      endif;enddo
 
       return
 
@@ -1662,6 +1662,8 @@
 
 
       ! Copied from Tephra
+      !  We need to specify fall velocities of aerosols and possible boyancy motions
+      !  of gases
       !subroutine Set_Vf_Meso_Source_Gas(Load_MesoSteps)
 
       !end subroutine Set_Vf_Meso_Source_Gas
