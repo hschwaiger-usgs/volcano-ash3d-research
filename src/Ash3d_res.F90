@@ -165,8 +165,8 @@
       real(kind=ip)         :: MassConsErr
 
       INTERFACE
-        subroutine input_data_ResetParams
-        end subroutine input_data_ResetParams
+!        subroutine input_data_ResetParams
+!        end subroutine input_data_ResetParams
         subroutine alloc_arrays
         end subroutine alloc_arrays
         subroutine calc_mesh_params
@@ -223,12 +223,12 @@
         do io=1,2;if(VB(io).le.verbosity_essential)then
           write(outlog(io),*)"Testing for ",OPTMOD_names(i),i
         endif;enddo
-        if(OPTMOD_names(i).eq.'RESETPARAMS')then
-          do io=1,2;if(VB(io).le.verbosity_essential)then
-            write(outlog(io),*)"  Reading input block for RESETPARAMS"
-          endif;enddo
-          call input_data_ResetParams
-        endif
+        !if(OPTMOD_names(i).eq.'RESETPARAMS')then
+        !  do io=1,2;if(VB(io).le.verbosity_essential)then
+        !    write(outlog(io),*)"  Reading input block for RESETPARAMS"
+        !  endif;enddo
+        !  call input_data_ResetParams
+        !endif
 #ifdef TOPO
         if(OPTMOD_names(i).eq.'TOPO')then
           do io=1,2;if(VB(io).le.verbosity_info)then
