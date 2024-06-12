@@ -218,6 +218,7 @@
 !
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),*)"Now looping through optional modules found in input file"
+        write(outlog(io),*)"Found ",nmods," optional modules"
       endif;enddo
       do i=1,nmods
         do io=1,2;if(VB(io).le.verbosity_essential)then

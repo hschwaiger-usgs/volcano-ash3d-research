@@ -140,8 +140,11 @@
       use mesh,          only : &
          nxmax,nymax,nzmax,nsmax,de,dn,lonLL,latLL,z_cc_pd,dz_vec_pd
 
+      use time_data,     only : &
+         BaseYear,useLeap,SimStartHour
+
       use Source,        only : &
-         neruptions,SourceType,e_Volume,e_Duration,e_PlumeHeight
+         neruptions,SourceType,e_Volume,e_StartTime,e_Duration,e_PlumeHeight
 
       use Tephra,        only : &
          MagmaDensity
@@ -159,6 +162,21 @@
       real(kind=ip)   :: dum1_ip,dum2_ip,dum3_ip
       character(len=2) :: dumstr1,dumstr2
       integer :: ireac
+      integer,       allocatable, dimension(:) :: iyear  ! time data read from files
+      integer,       allocatable, dimension(:) :: imonth
+      integer,       allocatable, dimension(:) :: iday
+      real(kind=dp), allocatable, dimension(:) :: hour   ! Start time of eruption in
+
+      INTERFACE
+        real(kind=8) function HS_hours_since_baseyear(iyear,imonth,iday,hours,byear,useLeaps)
+          integer            :: iyear
+          integer            :: imonth
+          integer            :: iday
+          real(kind=8)       :: hours
+          integer            :: byear
+          logical            :: useLeaps
+        end function HS_hours_since_baseyear
+      END INTERFACE
 
       do io=1,2;if(VB(io).le.verbosity_debug1)then
         write(outlog(io),*)"     Entered Subroutine input_data_Source_Gas"
@@ -238,6 +256,10 @@
       allocate(EruptGasFisLon(neruptions))
       allocate(EruptGasFisLat(neruptions))
       allocate(EruptGasSuzK(neruptions))
+      allocate (iyear(neruptions))
+      allocate (imonth(neruptions))
+      allocate (iday(neruptions))
+      allocate (hour(neruptions))
 
       ! If we've made it here, the requested source is a gas source, open
       ! the input file again to get needed info
@@ -289,11 +311,15 @@
       setSrcGasSurf_Perim = .false.
       do i=1,neruptions
         !read start time, duration, plume height, volume of each pulse
-        read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, & ! yyyy mm dd
-                                       dum1_ip, dum2_ip, dum3_ip,  & ! h.hh duration PlmH
+        read(linebuffer120,*,err=1910) iyear(i),imonth(i),iday(i), & ! yyyy mm dd
+                                       hour(i), e_Duration(i),     & ! h.hh duration
+                                       e_PlumeHeight(i),           & ! PlmH
                                        EruptGasMass(i),            & ! Total Mass in kt
                                        EruptGasSpeciesID(i),       & ! Species ID
                                        EruptGasSrcStruc(i)           ! Source structure code
+
+        e_StartTime(i) = HS_hours_since_baseyear(iyear(i),imonth(i), &
+                                iday(i),hour(i),BaseYear,useLeap) - SimStartHour
 
         if(EruptGasSrcStruc(i).eq.0)then
           ! This is a gas source driven by a source file
@@ -787,6 +813,7 @@
 
       ! While here, assign some of the global specied indecies now that the arrays
       ! have been allocated
+      write(*,*)iconcen_gas_start,ngas_max
       SpeciesID(iconcen_gas_start+1:iconcen_gas_start+ngas_max)    = 3 ! chem bins
       SpeciesSubID(iconcen_gas_start+1:iconcen_gas_start+ngas_max) = GS_GasSpeciesID(1:ngas_max)
 
@@ -1176,6 +1203,7 @@
            (tstart.lt.e_EndTime(i)))then     ! beginning of time step is before same pulse ends
           ! This catches all pulses that touch the start of dt
           Pulse_contributes = .true.
+          jeruption = i
         elseif((tend.gt.e_StartTime(i)).and. & ! end of time step at or after pulse start
                (tend.le.e_EndTime(i)))then     ! end of time step is before same pulse ends
           ! This catches all pulses that touch the end of dt
@@ -1194,6 +1222,7 @@
             write(outlog(io),1)i
           endif;enddo
           Pulse_contributes = .true.
+          jeruption = i
         endif
         if(Pulse_contributes)then
           ! If any pulse contributes, update the global flag
@@ -1338,6 +1367,10 @@
         endif
       enddo !neruptions
 
+      ! Now that we have prepared the contributions, update the eruption index
+      ! for the start of the next step
+      ieruption = jeruption
+
       end subroutine Set_Gas_Flux
 
 !******************************************************************************
@@ -1352,8 +1385,6 @@
 
       use Source,        only : &
          SourceNodeFlux,SourceNodeFlux_Area,ieruption
-
-      !use Topography
 
       use time_data,     only : &
          dt
@@ -1384,10 +1415,6 @@
         concen_pd(i,j,   k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0) =                     &
         concen_pd(i,j,   k,iconcen_gas_start+1:iconcen_gas_start+ngas_max,ts0)  + dt* &
           SourceNodeFlux(k,iconcen_gas_start+1:iconcen_gas_start+ngas_max)/kappa_pd(i,j,k)
-!        write(*,*)"Inserting gas source: "
-!        write(*,*)ieruption,iconcen_gas_start,EruptGasVentElv_k(ieruption),&
-!                    SourceNodeFlux(EruptGasVentElv_k(ieruption),iconcen_gas_start+1)
-
       else
         write(*,*)"Need to code up other source structures"
         stop 55
