@@ -314,6 +314,12 @@
       if(((SourceType.eq.'umbrella').or.(SourceType.eq.'umbrella_air')))then
         call Allocate_Source_Umbrella(nxmax,nymax,nzmax)
       endif
+#ifdef TOPO
+      if(useTopo)then
+        call Allocate_Topo(nxmax,nymax)
+        call Get_Topo
+      endif
+#endif
       if(.not.IsCustom_SourceType)then
         call Calc_Normalized_SourceCol
       endif
@@ -388,12 +394,12 @@
 !       OPTIONAL MODULES
 !         Insert calls to optional variable allocation subroutines here
 !
-#ifdef TOPO
-      if(useTopo)then
-        call Allocate_Topo(nxmax,nymax)
-        call Get_Topo
-      endif
-#endif
+!#ifdef TOPO
+!      if(useTopo)then
+!        call Allocate_Topo(nxmax,nymax)
+!        call Get_Topo
+!      endif
+!#endif
 #ifdef LC
       if(useLandCover)then
         call Allocate_LC

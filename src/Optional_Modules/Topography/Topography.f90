@@ -563,9 +563,11 @@
 
       ! Now that we have the topography prepared on the computational grid, set the jacobian
       if(ZScaling_ID.eq.0)then
+        Zsurf(1:nxmax,1:nymax)   = 0.0_ip
         ! No shifting or scaling so Jacobian remains 1 and dimensionless
         j_cc_pd(-1:nxmax+2,-1:nymax+2) = 1.0_ip
       elseif(ZScaling_ID.eq.1)then
+        Zsurf(1:nxmax,1:nymax)   = topo_comp(1:nxmax,1:nymax)
         ! Shifted grid: Jacobian remains 1 and dimensionless
         j_cc_pd(-1:nxmax+2,-1:nymax+2) = 1.0_ip
       elseif(ZScaling_ID.eq.2)then
