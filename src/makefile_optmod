@@ -35,7 +35,7 @@
 #    This variable cannot be left blank
 #
 SYSTEM = gfortran
-SYSINC = make_gfortran.inc
+SYSINC = make_$(SYSTEM).inc
 #
 #  RUN specifies which collection of compilation flags that should be run
 #    Current available options are:
@@ -283,6 +283,7 @@ Output_Results.o         \
 write_ASCII.o            \
 write_BINARY.o           \
 write_KML.o              \
+Topography.o             \
 ResetParams.o
 
 ifeq ($(USENETCDF), T)
@@ -300,7 +301,7 @@ Ash3d_res: $(OBJECTS) $(DATAOBJ) $(OPTMODS_OBJ) Ash3d_res.F90 $(MFILE) $(SYSINC)
 Ash3d_VariableModules.o: $(ASH3dCCSRC)/Ash3d_VariableModules.f90 $(MFILE) $(SYSINC)
 	sh $(ASH3dCCSRC)/get_version.sh
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c $(ASH3dCCSRC)/Ash3d_VariableModules.f90
-Input_Data.o: $(ASH3dCCSRC)/Input_Data.f90 $(MFILE) $(SYSINC) Ash3d_VariableModules.o Help.o Tephra.o VotW.o Diffusion.o Airports.o $(DATAOBJ) Output_Vars.o Source.o
+Input_Data.o: $(ASH3dCCSRC)/Input_Data.f90 $(MFILE) $(SYSINC) Ash3d_VariableModules.o Help.o Tephra.o VotW.o Diffusion.o Airports.o $(DATAOBJ) Output_Vars.o Source.o Source_Umbrella.o ResetParams.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c $(ASH3dCCSRC)/Input_Data.f90
 ResetParams.o: $(ASH3dCCSRC)/ResetParams.f90 $(MFILE) $(SYSINC) Ash3d_VariableModules.o Tephra.o Output_Vars.o Source_Umbrella.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c $(ASH3dCCSRC)/ResetParams.f90
