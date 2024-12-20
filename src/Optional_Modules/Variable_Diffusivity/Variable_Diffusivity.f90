@@ -220,10 +220,10 @@
         !LambdaC   = 30.0
         !RI_CRIT   = 0.25
         do io=1,2;if(VB(io).le.verbosity_info)then
-          write(outlog(io),*)KH_SmagC
-          write(outlog(io),*)vonKarman
-          write(outlog(io),*)LambdaC
-          write(outlog(io),*)RI_CRIT
+          write(outlog(io),*)"KH_SmagC ",real(KH_SmagC,kind=4)
+          write(outlog(io),*)"vonKarman",real(vonKarman,kind=4)
+          write(outlog(io),*)"LambdaC  ",real(LambdaC,kind=4)
+          write(outlog(io),*)"RI_CRIT  ",real(RI_CRIT,kind=4)
         endif;enddo
 
         ! We will want to reuse velocities on the metP grid for this module
@@ -623,6 +623,9 @@
       use mesh,          only : &
          nxmax,nymax,nzmax,dx,dy,IsLatLon,sigma_nz_pd
 
+!      use global_param,  only : &
+!         useVarDiffH,useVarDiffV
+
       use Diffusion,     only : &
          kx,ky
 
@@ -653,6 +656,9 @@
           !ivar = 2 ! U winds
           !call MR_Read_3d_MetP_Variable(ivar,MR_iMetStep_Now)
           !vx_meso_next_step_MetP_sp = MR_dum3d_metP
+          write(*,*)"MR_vx_metP_last"
+          write(*,*)MR_vx_metP_last
+          stop 100
           vx_meso_next_step_MetP_sp = MR_vx_metP_last
           MR_dum3d_metP             = MR_vx_metP_last
             ! Now differentiate

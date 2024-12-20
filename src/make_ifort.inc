@@ -20,10 +20,12 @@ endif
 ifeq ($(RUN), DEBUGOMP)
     FFLAGS = -debug full -g3 -O0 -CB -init:snan,arrays -warn all -gen-interfaces -traceback -check all -check bounds -ftrapuv -qopenmp -parallel
 endif
+
 # Profiling flags
 ifeq ($(RUN), PROF)
     FFLAGS = -g2 -pg
 endif
+
 # Production run flags
 ifeq ($(RUN), OPT)
     FFLAGS = -O3 -unroll -unroll-aggressive -ftz -inline-forceinline -finline-functions -ipo -ip
@@ -31,8 +33,10 @@ endif
 ifeq ($(RUN), OMPOPT)
     FFLAGS = -O3 -unroll -unroll-aggressive -ftz -inline-forceinline -finline-functions -ipo -ip -qopenmp -parallel
 endif
+
   # Preprocessing flags
 FPPFLAGS =  -fpp $(OSFPPFLAG) $(DATAFPPFLAG) $(LIMFPPFLAG) $(DIFFFPPFLAG) $(memFPPFLAG) $(extdatFPPFLAG) $(FASTFPPFLAG) $(PIIFPPFLAG) $(SYSFPPFLAG) $(PLOTFPPFLAG)
   # Extra flags
 EXFLAGS =
+
 ###############################################################################
