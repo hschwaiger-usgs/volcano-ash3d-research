@@ -2,7 +2,7 @@
 !
 !  Ash3d is a program for modeling volcanic ash transport and dispersion.
 !
-!  This software is written in Frotran 2003 and is designed for use on a Linux
+!  This software is written in Fortran 2003 and is designed for use on a Linux
 !  operating system.
 !  
 !  This software, along with auxillary USGS libraries and related repositories,
@@ -17,7 +17,8 @@
 !     deposition, Journal of Geophysical Research, 117, B04204,
 !     doi:10.1029/2011JB008968
 !
-!  A complete user's guide and reference manual is available at
+!  A complete user's guide and reference manual is available at:
+!   https://code.usgs.gov/vsc/ash3d/ash3d_users_guide
 !
 !  The USGS provides a web-interface to this software at:
 !    https://vsc-ash.wr.usgs.gov
@@ -42,7 +43,8 @@
          useVarDiffH,useVarDiffV
 
       use mesh,          only : &
-         ivent,jvent,nxmax,nymax,nzmax,nsmax,ts0,ts1,ZPADDING,dz_vec_pd,z_cc_pd
+         ivent,jvent,nxmax,nymax,nzmax,nsmax,ts0,ts1,ZPADDING,dz_vec_pd,&
+         z_cc_pd
 
       use solution,      only : &
          concen_pd,DepositGranularity,StopValue_FracAshDep,aloft_percent_remaining, &
@@ -51,7 +53,6 @@
       use Output_Vars,   only : &
          DepositAreaCovered,DepositThickness,LoadVal,CloudLoadArea,&
          Calculated_Cloud_Load,Calculated_AshThickness,Calc_vprofile, &
-           Allocate_Output_Vars, &
            Allocate_Output_UserVars, &
            Allocate_NTime,   &
            Allocate_Profile, &
@@ -103,7 +104,7 @@
            AdvectHorz
 
       use AdvectionVert_DCU, only : &
-           advect_z
+           AdvectVert
 
       use Diffusion,     only : &
            DiffuseHorz,&
@@ -128,9 +129,10 @@
 !       OPTIONAL MODULES
 !         Insert 'use' statements here
 !
-#ifdef TOPO
       use Topography
-#endif
+
+      use Diffusivity_Variable
+
 #ifdef LC
       use land_cover
 #endif
@@ -139,9 +141,6 @@
 #endif
 #ifdef WETDEPO
       use Wet_Deposition
-#endif
-#ifdef VARDIFF
-      use variable_diffusivity
 #endif
 #ifdef SRC_SAT
       use Source_Satellite
@@ -171,6 +170,8 @@
         end subroutine alloc_arrays
         subroutine calc_mesh_params
         end subroutine calc_mesh_params
+        subroutine calc_s_mesh
+        end subroutine calc_s_mesh
         subroutine MesoInterpolater(TimeNow,Load_MesoSteps,Interval_Frac)
           integer,parameter  :: dp         = 8 ! Double precision
           real(kind=dp),intent(in)    :: TimeNow
@@ -201,6 +202,7 @@
 
       aloft_percent_remaining = 1.0_ip
       SourceCumulativeVol     = 0.0_ip
+      MassConsErr             = 0.0_ip
 
         ! input data for ash transport
       call Read_Control_File
@@ -224,20 +226,19 @@
         do io=1,2;if(VB(io).le.verbosity_essential)then
           write(outlog(io),*)"Testing for ",OPTMOD_names(i),i
         endif;enddo
-        !if(OPTMOD_names(i).eq.'RESETPARAMS')then
-        !  do io=1,2;if(VB(io).le.verbosity_essential)then
-        !    write(outlog(io),*)"  Reading input block for RESETPARAMS"
-        !  endif;enddo
-        !  call input_data_ResetParams
-        !endif
-#ifdef TOPO
+        ! Note that RESETPARAMS is handeled in Input_Data.F90::Read_Control_File()
         if(OPTMOD_names(i).eq.'TOPO')then
           do io=1,2;if(VB(io).le.verbosity_info)then
             write(outlog(io),*)"  Reading input block for TOPO"
           endif;enddo
           call input_data_Topo
         endif
-#endif
+        if(OPTMOD_names(i).eq.'VARDIFF')then
+          do io=1,2;if(VB(io).le.verbosity_info)then    
+            write(outlog(io),*)"  Reading input block for VARDIFF"
+          endif;enddo
+          call input_data_VarDiff
+        endif
 #ifdef LC
         if(OPTMOD_names(i).eq.'LC')then
           do io=1,2;if(VB(io).le.verbosity_info)then    
@@ -260,14 +261,6 @@
             write(outlog(io),*)"  Reading input block for WETDEPO"
           endif;enddo
           call input_data_WetDepo
-        endif
-#endif
-#ifdef VARDIFF
-        if(OPTMOD_names(i).eq.'VARDIFF')then
-          do io=1,2;if(VB(io).le.verbosity_info)then    
-            write(outlog(io),*)"  Reading input block for VARDIFF"
-          endif;enddo
-          call input_data_VarDiff
         endif
 #endif
 #ifdef SRC_RESUSP
@@ -301,25 +294,28 @@
 !
 !------------------------------------------------------------------------------
 
-        ! Read airports/POI and allocate/initilize arrays
+        ! Read airports/POI and allocate/initialize arrays
         ! We only need to do this if an output variable demands it since this is
         ! a burden every time step
-      if(Output_every_TS) &
+      if(Write_PT_Data) &
         call ReadAirports
 
       call alloc_arrays
         ! Set up grids for solution and Met data
       call calc_mesh_params
+      if(useTopo)then
+        ! This can only be called after calc_mesh_params since we need
+        ! the horizontal grid to build the topo array
+        call Allocate_Topo(nxmax,nymax)
+        call Get_Topo
+      endif
+      ! Now that we potentially have topography, we can build the s_cc_pd array
+      call calc_s_mesh
 
       if(((SourceType.eq.'umbrella').or.(SourceType.eq.'umbrella_air')))then
         call Allocate_Source_Umbrella(nxmax,nymax,nzmax)
       endif
-#ifdef TOPO
-      if(useTopo)then
-        call Allocate_Topo(nxmax,nymax)
-        call Get_Topo
-      endif
-#endif
+
       if(.not.IsCustom_SourceType)then
         call Calc_Normalized_SourceCol
       endif
@@ -394,12 +390,8 @@
 !       OPTIONAL MODULES
 !         Insert calls to optional variable allocation subroutines here
 !
-!#ifdef TOPO
-!      if(useTopo)then
-!        call Allocate_Topo(nxmax,nymax)
-!        call Get_Topo
-!      endif
-!#endif
+      if(useVarDiffV)                  call Allocate_Atmosphere_Met
+      if(useVarDiffH.or.useVarDiffV)   call Allocate_VarDiff_Met
 #ifdef LC
       if(useLandCover)then
         call Allocate_LC
@@ -409,10 +401,6 @@
 #endif
 #ifdef OSCAR
       if(useOceanCurrent)              call Allocate_OSCAR
-#endif
-#ifdef VARDIFF
-      if(useVarDiffV)                  call Allocate_Atmosphere_Met
-      if(useVarDiffH.or.useVarDiffV)   call Allocate_VarDiff_Met
 #endif
 #ifdef WETDEPO
       if(USE_WETDEPO)then
@@ -459,10 +447,8 @@
 !       OPTIONAL MODULES
 !         Insert calls to special MesoInterpolaters subroutines here
 !
-#ifdef VARDIFF
         if(useVarDiffH)     call Set_VarDiffH_Meso(Load_MesoSteps,Interval_Frac)
         if(useVarDiffV)     call Set_VarDiffV_Meso(Load_MesoSteps,Interval_Frac)
-#endif
 #ifdef SRC_RESUSP
         if(useResuspension) call Set_Resusp_Meso(Load_MesoSteps,Interval_Frac)
 #endif
@@ -496,22 +482,20 @@
 !       OPTIONAL MODULES
 !         Insert calls to prep user-specified output
 !
-#ifdef TOPO
       if(useTopo) call Prep_output_Topo
-#endif
-#ifdef LC
-      if(useLandCover) call Prep_output_LC
-#endif
-#ifdef OSCAR
-      if(useOceanCurrent) call Prep_output_OSCAR
-#endif
-#ifdef VARDIFF
+
       if(useVarDiffH.or.useVarDiffV)then
         do io=1,2;if(VB(io).le.verbosity_debug1)then
           write(outlog(io),*)"Calling Prep_output_VarDiff."
         endif;enddo
         call Prep_output_VarDiff
       endif
+
+#ifdef LC
+      if(useLandCover) call Prep_output_LC
+#endif
+#ifdef OSCAR
+      if(useOceanCurrent) call Prep_output_OSCAR
 #endif
 #ifdef WETDEPO
       if(USE_WETDEPO) call Prep_output_WetDepo
@@ -600,11 +584,12 @@
           ! find the wind field at the current time
         call MesoInterpolater(time , Load_MesoSteps , Interval_Frac)
 
+        if(useTopo) call Calc_Vmod_Topo
+
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
 !         Insert calls to special MesoInterpolaters subroutines here
 !
-#ifdef VARDIFF
         do io=1,2;if(VB(io).le.verbosity_debug1)then
           write(outlog(io),*)"Calling Set_VarDiffH_Meso."
         endif;enddo
@@ -613,7 +598,6 @@
           write(outlog(io),*)"Calling Set_VarDiffV_Meso."
         endif;enddo
         if(useVarDiffV)     call Set_VarDiffV_Meso(Load_MesoSteps,Interval_Frac)
-#endif
 #ifdef SRC_RESUSP
         do io=1,2;if(VB(io).le.verbosity_debug1)then
           write(outlog(io),*)"Calling Set_Resusp_Meso."
@@ -699,7 +683,6 @@
                 concen_pd(ivent,jvent,1:nzmax+1,1:n_gs_max,ts0) +  &
                   real(dt,kind=ip) * &
                   SourceNodeFlux(1:nzmax+1,1:n_gs_max)
-
             ! Keep track of the accumulated source inserted for mass conservation error-checking
             SourceCumulativeVol = SourceCumulativeVol + SourceVolInc(dt)
 
@@ -800,12 +783,12 @@
 
         if(useHorzAdvect) call AdvectHorz(itime)
 
-        if(useVertAdvect) call advect_z
+        if(useVertAdvect) call AdvectVert
 
         if(useDiffusion)then
           call Set_BC(2)
-          call DiffuseVert
           call DiffuseHorz(itime)
+          call DiffuseVert
         endif
 
 !------------------------------------------------------------------------------
@@ -841,7 +824,7 @@
 
 !------------------------------------------------------------------------------
 !       OPTIONAL MODULES
-!         Insert calls output routines (every timestep) here
+!         Insert calls output routines (every time step) here
 !
 #ifdef WETDEPO
           do io=1,2;if(VB(io).le.verbosity_debug1)then
@@ -852,7 +835,8 @@
 !------------------------------------------------------------------------------
 
             ! See whether the ash has hit any airports/POI
-          call FirstAsh
+          if (Write_PT_Data) &
+            call FirstAsh
 
             ! Track ash on vertical profiles
           if (Write_PR_Data)then
@@ -881,14 +865,12 @@
 !          endif;enddo
 !          if(USE_WETDEPO) call ThicknessCalculator_WetDepo
 !#endif
-#ifdef VARDIFF
           if(useVarDiffH.or.useVarDiffV)then
             do io=1,2;if(VB(io).le.verbosity_debug1)then
               write(outlog(io),*)"Calling Prep_output_VarDiff."
             endif;enddo
             call Prep_output_VarDiff
           endif
-#endif
 #ifdef WETDEPO
           if(USE_WETDEPO)then
             do io=1,2;if(VB(io).le.verbosity_debug1)then
@@ -934,12 +916,10 @@
 !       OPTIONAL MODULES
 !         Insert calls output routines (every log-step) here
 !
-#ifdef WETDEPO
               do io=1,2;if(VB(io).le.verbosity_debug1)then
                 write(outlog(io),*)"Calling ThicknessCalculator_WetDepo."
               endif;enddo
               if(USE_WETDEPO) call ThicknessCalculator_WetDepo
-#endif
 !------------------------------------------------------------------------------
             endif
             call TimeStepTotals(itime)
@@ -1037,7 +1017,7 @@
          (StopConditions(1).eqv..true.))then
         ! Normal stop condition set by user tracking the deposit
         do io=1,2;if(VB(io).le.verbosity_info)then
-          write(outlog(io),*)"Percent accumulated/exited exceeds ",StopValue_FracAshDep
+          write(outlog(io),'(a35,f8.3)')"Percent accumulated/exited exceeds ",StopValue_FracAshDep
         endif;enddo
       endif
       if((CheckConditions(2).eqv..true.).and.&
@@ -1154,7 +1134,7 @@
              /,5x,'Area covered by >0.01 mm (km2)   = ',f10.1,/)
 5012  format(4x,'*=files written out')
 
-5020  format('Calculating fall time from plume top',/,&
+5020  format('Calculating fall time from plume top to z=0',/,&
               5x,'GS index',5x,'diam (mm)',5x,'fall time (hours)')
 5021  format(5x,i4,7x,f8.3,10x,f15.1)
 
@@ -1170,12 +1150,8 @@
 !       OPTIONAL MODULES
 !         Insert calls deallocation routines here
 !
-#ifdef TOPO
       if(useTopo)                     call Deallocate_Topo
-#endif
-#ifdef VARDIFF
       if(useVarDiffH.or.useVarDiffV)  call Deallocate_VarDiff_Met
-#endif
 #ifdef LC
       if(useLandCover)                call Deallocate_LC
 #endif
