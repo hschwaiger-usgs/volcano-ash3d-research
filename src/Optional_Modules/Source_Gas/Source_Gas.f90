@@ -386,7 +386,7 @@
                                          EruptGasSpeciesID(i),       & ! Species ID
                                          EruptGasSrcStruc(i),        & ! Source structure code
                                          EruptGasVentLon(i),EruptGasVentLat(i)  ! point coordinates
-          ! If unsuccessful, then uset vent lon,lat from Block 1
+          ! If unsuccessful, then use vent lon,lat from Block 1
         elseif(EruptGasSrcStruc(i).eq.5)then
           ! Read the lon/lat of the vertical line source
           read(linebuffer120,*,err=1910) dum1_int,dum2_int,dum3_int, & ! yyyy mm dd
@@ -1112,7 +1112,7 @@
 !          !ivar = 13
 !          !call MR_Read_2d_Met_Variable_to_CompGrid(ivar,MR_iMetStep_Now)
 !          !FricVel_meso_next_step_sp = MR_dum2d_comp
-!          !Note:  This was read in variable_diffusivity on the met grid and now
+!          !Note:  This was read in Diffusivity_Variable on the met grid and now
 !          !       only needs to be resampled
 !          MR_dum2d_met = FricVel_meso_next_step_Met_sp
 !          call MR_Regrid_Met2d_to_Comp2d

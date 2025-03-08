@@ -5,8 +5,8 @@
 !  This software is written in Fortran 2003 and is designed for use on a Linux
 !  operating system.
 !  
-!  This software, along with auxillary USGS libraries and related repositories,
-!  can be found at https://code.usgs.gov/vsc/ash3d
+!  This software, along with auxiliary USGS libraries and related repositories,
+!  can be found at https://code.usgs.gov/vsc/ash3d/volcano-ash3d-research
 !
 !  Installation instructions are given in the README.md file of this repository.
 !  Basic usage instructions are given in doc/UsersGuide.md.
@@ -130,9 +130,9 @@
 !         Insert 'use' statements here
 !
       use Topography
-
+      
       use Diffusivity_Variable
-
+      
 #ifdef LC
       use land_cover
 #endif
@@ -203,6 +203,7 @@
       aloft_percent_remaining = 1.0_ip
       SourceCumulativeVol     = 0.0_ip
       MassConsErr             = 0.0_ip
+
 
         ! input data for ash transport
       call Read_Control_File
@@ -392,6 +393,7 @@
 !
       if(useVarDiffV)                  call Allocate_Atmosphere_Met
       if(useVarDiffH.or.useVarDiffV)   call Allocate_VarDiff_Met
+
 #ifdef LC
       if(useLandCover)then
         call Allocate_LC
@@ -449,6 +451,7 @@
 !
         if(useVarDiffH)     call Set_VarDiffH_Meso(Load_MesoSteps,Interval_Frac)
         if(useVarDiffV)     call Set_VarDiffV_Meso(Load_MesoSteps,Interval_Frac)
+
 #ifdef SRC_RESUSP
         if(useResuspension) call Set_Resusp_Meso(Load_MesoSteps,Interval_Frac)
 #endif
@@ -483,7 +486,7 @@
 !         Insert calls to prep user-specified output
 !
       if(useTopo) call Prep_output_Topo
-
+      
       if(useVarDiffH.or.useVarDiffV)then
         do io=1,2;if(VB(io).le.verbosity_debug1)then
           write(outlog(io),*)"Calling Prep_output_VarDiff."
@@ -919,7 +922,9 @@
               do io=1,2;if(VB(io).le.verbosity_debug1)then
                 write(outlog(io),*)"Calling ThicknessCalculator_WetDepo."
               endif;enddo
+#ifdef WETDEPO
               if(USE_WETDEPO) call ThicknessCalculator_WetDepo
+#endif
 !------------------------------------------------------------------------------
             endif
             call TimeStepTotals(itime)
@@ -1024,9 +1029,9 @@
          (StopConditions(2).eqv..true.))then
         ! Normal stop condition if simulation exceeds alloted time
         do io=1,2;if(VB(io).le.verbosity_info)then
-          write(outlog(io),*)"time.ge.Simtime_in_hours"
-          write(outlog(io),*)"              Time = ",real(time,kind=4)
-          write(outlog(io),*)"  Simtime_in_hours = ",real(Simtime_in_hours,kind=4)
+          write(outlog(io),'(a24)')"time.ge.Simtime_in_hours"
+          write(outlog(io),'(a21,f15.3)')"              Time = ",time
+          write(outlog(io),'(a21,f15.3)')"  Simtime_in_hours = ",Simtime_in_hours
         endif;enddo
       endif
       if((CheckConditions(3).eqv..true.).and.&
@@ -1041,11 +1046,11 @@
         ! Error stop condition if the concen and outflow do not match the source
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"Cummulative source volume does not match aloft + outflow"
-          write(errlog(io),*)" tot_vol = ",tot_vol
-          write(errlog(io),*)" SourceCumulativeVol = ",SourceCumulativeVol
-          write(errlog(io),*)" Abs. Error = ",&
+          write(errlog(io),'(a11,f15.5)')" tot_vol = ",tot_vol
+          write(errlog(io),'(a11,f15.5)')" SourceCumulativeVol = ",SourceCumulativeVol
+          write(errlog(io),'(a14,f15.5)')" Abs. Error = ",&
                                abs((tot_vol-SourceCumulativeVol)/SourceCumulativeVol)
-          write(errlog(io),*)" e_Volume = ",e_Volume
+          write(errlog(io),'(a12,f15.5)')" e_Volume = ",e_Volume
         endif;enddo
         stop 1
       endif
@@ -1054,10 +1059,10 @@
         ! Error stop condition if any volume measure is negative
         do io=1,2;if(VB(io).le.verbosity_error)then
           write(errlog(io),*)"One of the volume measures is negative."
-          write(errlog(io),*)"        dep_vol = ",dep_vol
-          write(errlog(io),*)"        aloft_vol = ",aloft_vol
-          write(errlog(io),*)"        outflow_vol = ",outflow_vol
-          write(errlog(io),*)"        SourceCumulativeVol = ",SourceCumulativeVol
+          write(errlog(io),'(a30,f13.5)')"                    dep_vol = ",dep_vol
+          write(errlog(io),'(a30,f13.5)')"                  aloft_vol = ",aloft_vol
+          write(errlog(io),'(a30,f13.5)')"                outflow_vol = ",outflow_vol
+          write(errlog(io),'(a30,f13.5)')"        SourceCumulativeVol = ",SourceCumulativeVol
         endif;enddo
         stop 1
       endif
@@ -1073,8 +1078,8 @@
 
       do io=1,2;if(VB(io).le.verbosity_info)then
         write(outlog(io),5012)   ! put footnotes below output table
-        write(outlog(io),*)'time=',real(time,kind=4),',dt=',real(dt,kind=4)
-        write(outlog(io),*)"Mass Conservation Error = ",MassConsErr
+        write(outlog(io),'(a5,f10.3,a5,f10.3)')'time=',time,', dt=',dt
+        write(outlog(io),'(a26,g15.5)')"Mass Conservation Error = ",MassConsErr
       endif;enddo
 
         ! Make sure we have the latest output variables and go to write routines
@@ -1123,10 +1128,6 @@
                5x,'MetReader time (cpu)      = ',f15.4,' seconds',/&
                5x,'Total solver time (cpu)   = ',f15.4,' seconds',/&
               ,5x,'Wall clock time           = ',f15.4,' seconds') 
-!5003  format(/,5x,'Set-up time              = ',f15.4,' seconds',/&
-!               5x,'Execution time           = ',f15.4,' seconds',/&
-!              ,5x,'Simulation time          = ',f15.4,' seconds')      
-!5004  format(  5x,'Execution time/CPU time  = ',f15.4)
 5005  format(  5x,'Ending deposit volume    = ',f15.4,' km3 DRE')       
 5006  format(  5x,'Ending total volume      = ',f15.4,' km3 DRE')       
 5007  format(  5x,'Building time array of plume height & eruption rate')

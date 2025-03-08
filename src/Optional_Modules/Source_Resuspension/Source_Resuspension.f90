@@ -344,7 +344,7 @@
       use Source,        only : &
          SourceNodeFlux_Area
 
-      use Variable_Diffusivity, only : &
+      use Diffusivity_Variable, only : &
          FricVel_ip
 
       use Output_Vars,   only : &
@@ -568,7 +568,7 @@
       use mesh,          only : &
          nxmax,nymax
 
-      use Variable_Diffusivity, only : &
+      use Diffusivity_Variable, only : &
          FricVel_ip,FricVel_meso_last_step_sp,FricVel_meso_next_step_sp,&
          FricVel_meso_next_step_Met_sp
 
@@ -596,7 +596,7 @@
           ivar = 13
           call MR_Read_2d_Met_Variable_to_CompGrid(ivar,MR_iMetStep_Now)
           FricVel_meso_next_step_sp = MR_dum2d_comp
-          !Note:  This was read in variable_diffusivity on the met grid and now
+          !Note:  This was read in Diffusivity_Variable on the met grid and now
           !       only needs to be resampled
           if(allocated(FricVel_meso_next_step_Met_sp)) then
             write(*,*)"FricVel_meso_next_step_Met_sp is allocated"
@@ -663,7 +663,7 @@
       use Source,        only : &
          SourceNodeFlux_Area
 
-      use Variable_Diffusivity, only : &
+      use Diffusivity_Variable, only : &
          FricVel_ip
 
       implicit none

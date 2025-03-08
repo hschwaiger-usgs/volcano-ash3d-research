@@ -64,8 +64,7 @@ USGSROOT=/opt/USGS
 
 # This is the location of the Ash3d core code source files that we will build this
 # research branch with.
-ASH3DCCSRC=~/work/USGS/Software/GIT/Ash3d/src
-#ASH3DCCSRC=/home/ash3d/Ash3d/GIT/Ash3d/src
+ASH3DCCSRC=~/work/USGS/Software/GIT/volcano-ash3d/src
 
 INSTALLDIR=$(USGSROOT)/Ash3d
 
@@ -119,9 +118,7 @@ DIFFMETH=CRANKNIC
 
 #OPTMODS_FPP= -x f95-cpp-input -DTOPO -DLC -DVARDIFF -DWETDEPO -DSRC_SAT -DSRC_RESUSP -DSRC_GAS -DOSCAR
 #OPTMODS_OBJ=           \
-#Topography.o           \
 #LandCover.o            \
-#Variable_Diffusivity.o \
 #WetDepo.o              \
 #Source_Satellite.o     \
 #Source_Resuspension.o  \
@@ -131,9 +128,7 @@ DIFFMETH=CRANKNIC
 # Resuspension runs
 #OPTMODS_FPP= -x f95-cpp-input -DTOPO -DLC -DVARDIFF -DSRC_RESUSP
 #OPTMODS_OBJ=           \
-Topography.o           \
 LandCover.o            \
-Variable_Diffusivity.o \
 Source_Resuspension.o
 
 # SO2 cloud runs
@@ -242,7 +237,6 @@ ifeq ($(RUN), DEBUGOMP)
     ASH3DEXEC=Ash3d_res_debugomp
 endif
 ifeq ($(RUN), OPT)
-    FFLAGS = -O3 -w -fno-math-errno -funsafe-math-optimizations -fno-trapping-math -fno-signaling-nans -fcx-limited-range -fno-rounding-math -fdefault-real-8
     ASH3DEXEC=Ash3d_res_opt
 endif
 ifeq ($(RUN), OMPOPT)
@@ -284,6 +278,7 @@ write_ASCII.o            \
 write_BINARY.o           \
 write_KML.o              \
 Topography.o             \
+Diffusivity_Variable.o   \
 ResetParams.o
 
 ifeq ($(USENETCDF), T)
@@ -304,12 +299,14 @@ Ash3d_VariableModules.o: $(ASH3DCCSRC)/Ash3d_VariableModules.f90 $(MFILE) $(SYSI
 	echo "        zippath = $(zippath)" > zippath.h
 	echo "        gnuplotpath = $(gnuplotpath)" > gnuplotpath.h
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c $(ASH3DCCSRC)/Ash3d_VariableModules.f90
-Input_Data.o: $(ASH3DCCSRC)/Input_Data.f90 $(MFILE) $(SYSINC) Ash3d_VariableModules.o Help.o Tephra.o VotW.o Diffusion.o Airports.o $(DATAOBJ) Output_Vars.o Source.o Source_Umbrella.o ResetParams.o
+Input_Data.o: $(ASH3DCCSRC)/Input_Data.f90 $(MFILE) $(SYSINC) Ash3d_VariableModules.o Help.o Tephra.o VotW.o Diffusion.o Airports.o $(DATAOBJ) Output_Vars.o Source.o Source_Umbrella.o ResetParams.o Diffusivity_Variable.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c $(ASH3DCCSRC)/Input_Data.f90
 ResetParams.o: $(ASH3DCCSRC)/ResetParams.f90 $(MFILE) $(SYSINC) Ash3d_VariableModules.o Tephra.o Output_Vars.o Source_Umbrella.o Diffusion.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c $(ASH3DCCSRC)/ResetParams.f90
-Topography.o: Topography.f90 $(MFILE) Ash3d_VariableModules.o Output_Vars.o Tephra.o Calc_Mesh.o $(DATAOBJ) write_BINARY.o write_ASCII.o
-	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Topography.f90
+Topography.o: $(ASH3DCCSRC)/Topography.f90 $(MFILE) Ash3d_VariableModules.o Output_Vars.o Tephra.o Calc_Mesh.o $(DATAOBJ) write_BINARY.o write_ASCII.o
+	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c $(ASH3DCCSRC)/Topography.f90
+Diffusivity_Variable.o: $(ASH3DCCSRC)/Diffusivity_Variable.f90 $(MFILE) Ash3d_VariableModules.o Output_Vars.o Tephra.o Diffusion.o Atmosphere.o
+	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c $(ASH3DCCSRC)/Diffusivity_Variable.f90
 Help.o: $(ASH3DCCSRC)/Help.f90 $(MFILE) $(SYSINC) Ash3d_VariableModules.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) -c $(ASH3DCCSRC)/Help.f90
 VotW.o: $(ASH3DCCSRC)/VotW.f90 $(MFILE) $(SYSINC) Ash3d_VariableModules.o Source.o
@@ -375,17 +372,13 @@ LandCover.o: Optional_Modules/LandCover/LandCover.f90 $(MFILE) Ash3d_VariableMod
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/LandCover/LandCover.f90
 WetDepo.o: Optional_Modules/Wet_Deposition/WetDepo.f90 $(MFILE) Ash3d_VariableModules.o Output_Vars.o Tephra.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/Wet_Deposition/WetDepo.f90
-Topography.o: Optional_Modules/Topography/Topography.f90 $(MFILE) Ash3d_VariableModules.o Output_Vars.o Tephra.o Calc_Mesh.o $(DATAOBJ) write_BINARY.o write_ASCII.o
-	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/Topography/Topography.f90
-Variable_Diffusivity.o: Optional_Modules/Variable_Diffusivity/Variable_Diffusivity.f90 $(MFILE) Diffusion.o Ash3d_VariableModules.o Output_Vars.o Tephra.o
-	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/Variable_Diffusivity/Variable_Diffusivity.f90
 Ocean_Currents.o: Optional_Modules/OceanCurrents/Ocean_Currents.f90 Ash3d_VariableModules.o Output_Vars.o Tephra.o Calc_Mesh.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/OceanCurrents/Ocean_Currents.f90
 Source_Satellite.o: Optional_Modules/Source_Satellite/Source_Satellite.f90 Source.o $(MFILE) Ash3d_VariableModules.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/Source_Satellite/Source_Satellite.f90
-Source_Resuspension.o: Optional_Modules/Source_Resuspension/Source_Resuspension.f90 Source.o $(MFILE) Diffusion.o LandCover.o Variable_Diffusivity.o Tephra.o Ash3d_VariableModules.o
+Source_Resuspension.o: Optional_Modules/Source_Resuspension/Source_Resuspension.f90 Source.o $(MFILE) Diffusion.o LandCover.o Diffusivity_Variable.o Tephra.o Ash3d_VariableModules.o
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/Source_Resuspension/Source_Resuspension.f90
-Source_Gas.o: Optional_Modules/Source_Gas/Source_Gas.f90 Source.o $(MFILE) Diffusion.o LandCover.o Variable_Diffusivity.o Tephra.o Ash3d_VariableModules.o
+Source_Gas.o: Optional_Modules/Source_Gas/Source_Gas.f90 Source.o $(MFILE) Diffusion.o LandCover.o Diffusivity_Variable.o Tephra.o Ash3d_VariableModules.o
 	 $(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/Source_Gas/Source_Gas.f90
 Testcases.o: Optional_Modules/TestCases/Testcases.f90 Ash3d_VariableModules.o $(MFILE)
 	$(FC) $(FPPFLAGS) $(FFLAGS) $(EXFLAGS) $(LIBS) -c Optional_Modules/TestCases/Testcases.f90
@@ -403,4 +396,5 @@ install:
 
 uninstall:
 	rm -f $(INSTALLDIR)/bin/$(ASH3DEXEC)
+
 
